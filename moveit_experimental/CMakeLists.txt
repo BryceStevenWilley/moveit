@@ -35,6 +35,12 @@ endif()
 find_package(octomap REQUIRED)
 find_package(urdfdom REQUIRED)
 find_package(urdfdom_headers REQUIRED)
+# TODO: this feels wrong, but I don't know how to chain include file locations.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBFCL REQUIRED fcl)
+find_library(LIBFCL_LIBRARIES_FULL ${LIBFCL_LIBRARIES} ${LIBFCL_LIBRARY_DIRS})
+set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
+
 
 set(VERSION_FILE_PATH "${CATKIN_DEVEL_PREFIX}/include")
 file(MAKE_DIRECTORY "${VERSION_FILE_PATH}")
@@ -49,6 +55,7 @@ catkin_package(
     ${THIS_PACKAGE_INCLUDE_DIRS}
     ${OCTOMAP_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIR}
+    ${LIBFCL_INCLUDE_DIR}
   LIBRARIES
     moveit_collision_distance_field
     collision_detector_hybrid_plugin
@@ -72,9 +79,12 @@ catkin_package(
 include_directories(SYSTEM ${EIGEN3_INCLUDE_DIRS}
                            )
 
+message("${catkin_INCLUDE_DIRS}")
+
 include_directories(${THIS_PACKAGE_INCLUDE_DIRS}
                     ${Boost_INCLUDE_DIR}
                     ${catkin_INCLUDE_DIRS}
+                    ${LIBFCL_INCLUDE_DIRS}
                     ${console_bridge_INCLUDE_DIRS}
                     ${urdfdom_INCLUDE_DIRS}
                     ${urdfdom_headers_INCLUDE_DIRS}

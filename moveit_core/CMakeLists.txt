@@ -27,6 +27,9 @@ pkg_check_modules(LIBFCL REQUIRED fcl)
 find_library(LIBFCL_LIBRARIES_FULL ${LIBFCL_LIBRARIES} ${LIBFCL_LIBRARY_DIRS})
 set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
 
+# TODO: Bryce is an awful person.
+set(LIBFCL_LIBRARIES "/home/brycew/fcl/build/lib/libfcl.so")
+
 find_package(octomap REQUIRED)
 
 find_package(urdfdom REQUIRED)
@@ -90,6 +93,7 @@ set(THIS_PACKAGE_INCLUDE_DIRS
 catkin_package(
   INCLUDE_DIRS
     ${THIS_PACKAGE_INCLUDE_DIRS}
+    ${LIBFCL_INCLUDE_DIRS}
   LIBRARIES
     moveit_exceptions
     moveit_background_processing
@@ -111,6 +115,7 @@ catkin_package(
     moveit_kinematics_metrics
     moveit_dynamics_solver
     ${OCTOMAP_LIBRARIES}
+    ${LIBFCL_LIBRARIES}
   CATKIN_DEPENDS
     eigen_conversions
     eigen_stl_containers

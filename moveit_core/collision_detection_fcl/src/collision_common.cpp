@@ -36,15 +36,12 @@
 
 #include <moveit/collision_detection_fcl/collision_common.h>
 #include <geometric_shapes/shapes.h>
-#include <fcl/BVH/BVH_model.h>
-#include <fcl/shape/geometric_shapes.h>
-#include <fcl/octree.h>
 #include <boost/thread/mutex.hpp>
 #include <memory>
 
 namespace collision_detection
 {
-bool collisionCallback(fcl::CollisionObject* o1, fcl::CollisionObject* o2, void* data)
+bool collisionCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<double>* o2, void* data)
 {
   CollisionData* cdata = reinterpret_cast<CollisionData*>(data);
   if (cdata->done_)
@@ -170,8 +167,8 @@ bool collisionCallback(fcl::CollisionObject* o1, fcl::CollisionObject* o2, void*
     bool enable_cost = cdata->req_->cost;
     std::size_t num_max_cost_sources = cdata->req_->max_cost_sources;
     bool enable_contact = true;
-    fcl::CollisionResult col_result;
-    int num_contacts = fcl::collide(o1, o2, fcl::CollisionRequest(std::numeric_limits<size_t>::max(), enable_contact,
+    fcl::CollisionResult<double> col_result;
+    int num_contacts = fcl::collide(o1, o2, fcl::CollisionRequest<double>(std::numeric_limits<size_t>::max(), enable_contact,
                                                                   num_max_cost_sources, enable_cost),
                                     col_result);
     if (num_contacts > 0)
@@ -213,7 +210,7 @@ bool collisionCallback(fcl::CollisionObject* o1, fcl::CollisionObject* o2, void*
 
     if (enable_cost)
     {
-      std::vector<fcl::CostSource> cost_sources;
+      std::vector<fcl::CostSource<double> > cost_sources;
       col_result.getCostSources(cost_sources);
 
       CostSource cs;
@@ -235,9 +232,9 @@ bool collisionCallback(fcl::CollisionObject* o1, fcl::CollisionObject* o2, void*
       std::size_t num_max_cost_sources = cdata->req_->max_cost_sources;
       bool enable_contact = true;
 
-      fcl::CollisionResult col_result;
+      fcl::CollisionResult<double> col_result;
       int num_contacts = fcl::collide(
-          o1, o2, fcl::CollisionRequest(want_contact_count, enable_contact, num_max_cost_sources, enable_cost),
+          o1, o2, fcl::CollisionRequest<double>(want_contact_count, enable_contact, num_max_cost_sources, enable_cost),
           col_result);
       if (num_contacts > 0)
       {
@@ -273,7 +270,7 @@ bool collisionCallback(fcl::CollisionObject* o1, fcl::CollisionObject* o2, void*
 
       if (enable_cost)
       {
-        std::vector<fcl::CostSource> cost_sources;
+        std::vector<fcl::CostSource<double> > cost_sources;
         col_result.getCostSources(cost_sources);
 
         CostSource cs;
@@ -291,9 +288,9 @@ bool collisionCallback(fcl::CollisionObject* o1, fcl::CollisionObject* o2, void*
       bool enable_cost = cdata->req_->cost;
       std::size_t num_max_cost_sources = cdata->req_->max_cost_sources;
       bool enable_contact = false;
-      fcl::CollisionResult col_result;
+      fcl::CollisionResult<double> col_result;
       int num_contacts =
-          fcl::collide(o1, o2, fcl::CollisionRequest(1, enable_contact, num_max_cost_sources, enable_cost), col_result);
+          fcl::collide(o1, o2, fcl::CollisionRequest<double>(1, enable_contact, num_max_cost_sources, enable_cost), col_result);
       if (num_contacts > 0)
       {
         cdata->res_->collision = true;
@@ -306,7 +303,7 @@ bool collisionCallback(fcl::CollisionObject* o1, fcl::CollisionObject* o2, void*
 
       if (enable_cost)
       {
-        std::vector<fcl::CostSource> cost_sources;
+        std::vector<fcl::CostSource<double> > cost_sources;
         col_result.getCostSources(cost_sources);
 
         CostSource cs;
@@ -384,7 +381,7 @@ struct FCLShapeCache
   boost::mutex lock_;
 };
 
-bool distanceCallback(fcl::CollisionObject* o1, fcl::CollisionObject* o2, void* data, double& min_dist)
+bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<double>* o2, void* data, double& min_dist)
 {
   CollisionData* cdata = reinterpret_cast<CollisionData*>(data);
 
@@ -470,10 +467,14 @@ bool distanceCallback(fcl::CollisionObject* o1, fcl::CollisionObject* o2, void* 
     return cdata->done_;
   }
 
-  fcl::DistanceResult dist_result;
+  fcl::DistanceResult<double> dist_result;
   dist_result.update(cdata->res_->distance, nullptr, nullptr, fcl::DistanceResult::NONE,
                      fcl::DistanceResult::NONE);  // can be faster
-  const double d = fcl::distance(o1, o2, fcl::DistanceRequest(), dist_result);
+  dist_result.update(cdata->res_->distance, NULL, NULL, fcl::DistanceResult<double>::NONE,
+                     fcl::DistanceResult<double>::NONE);  // can be faster
+  fcl::DistanceRequest<double> dist_request;
+  dist_request.enable_signed_distance = true;
+  const double d = fcl::distance(o1, o2, fcl::DistanceRequest<double>(), dist_result);
 
   if (cdata->req_->verbose)
     CONSOLE_BRIDGE_logDebug("Distance between %s and %s: %f", cd1->getID().c_str(), cd2->getID().c_str(), d);
@@ -631,7 +632,7 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
     othercache.lock_.unlock();
   }
 
-  fcl::CollisionGeometry* cg_g = nullptr;
+  fcl::CollisionGeometry<double>* cg_g = nullptr;
   if (shape->type == shapes::PLANE)  // shapes that directly produce CollisionGeometry
   {
     // handle cases individually
@@ -640,7 +641,7 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
       case shapes::PLANE:
       {
         const shapes::Plane* p = static_cast<const shapes::Plane*>(shape.get());
-        cg_g = new fcl::Plane(p->a, p->b, p->c, p->d);
+        cg_g = new fcl::Plane<double>(p->a, p->b, p->c, p->d);
       }
       break;
       default:
@@ -654,26 +655,26 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
       case shapes::SPHERE:
       {
         const shapes::Sphere* s = static_cast<const shapes::Sphere*>(shape.get());
-        cg_g = new fcl::Sphere(s->radius);
+        cg_g = new fcl::Sphere<double>(s->radius);
       }
       break;
       case shapes::BOX:
       {
         const shapes::Box* s = static_cast<const shapes::Box*>(shape.get());
         const double* size = s->size;
-        cg_g = new fcl::Box(size[0], size[1], size[2]);
+        cg_g = new fcl::Box<double>(size[0], size[1], size[2]);
       }
       break;
       case shapes::CYLINDER:
       {
         const shapes::Cylinder* s = static_cast<const shapes::Cylinder*>(shape.get());
-        cg_g = new fcl::Cylinder(s->radius, s->length);
+        cg_g = new fcl::Cylinder<double>(s->radius, s->length);
       }
       break;
       case shapes::CONE:
       {
         const shapes::Cone* s = static_cast<const shapes::Cone*>(shape.get());
-        cg_g = new fcl::Cone(s->radius, s->length);
+        cg_g = new fcl::Cone<double>(s->radius, s->length);
       }
       break;
       case shapes::MESH:
@@ -687,9 +688,9 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
             tri_indices[i] =
                 fcl::Triangle(mesh->triangles[3 * i], mesh->triangles[3 * i + 1], mesh->triangles[3 * i + 2]);
 
-          std::vector<fcl::Vec3f> points(mesh->vertex_count);
+          std::vector<fcl::Vector3d> points(mesh->vertex_count);
           for (unsigned int i = 0; i < mesh->vertex_count; ++i)
-            points[i] = fcl::Vec3f(mesh->vertices[3 * i], mesh->vertices[3 * i + 1], mesh->vertices[3 * i + 2]);
+            points[i] = fcl::Vector3d(mesh->vertices[3 * i], mesh->vertices[3 * i + 1], mesh->vertices[3 * i + 2]);
 
           g->beginModel();
           g->addSubModel(points, tri_indices);
@@ -701,7 +702,7 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
       case shapes::OCTREE:
       {
         const shapes::OcTree* g = static_cast<const shapes::OcTree*>(shape.get());
-        cg_g = new fcl::OcTree(g->octree);
+        cg_g = new fcl::OcTree<double>(g->octree);
       }
       break;
       default:
@@ -725,18 +726,18 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
 FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, const robot_model::LinkModel* link,
                                             int shape_index)
 {
-  return createCollisionGeometry<fcl::OBBRSS, robot_model::LinkModel>(shape, link, shape_index);
+  return createCollisionGeometry<fcl::OBBRSS<double>, robot_model::LinkModel>(shape, link, shape_index);
 }
 
 FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, const robot_state::AttachedBody* ab,
                                             int shape_index)
 {
-  return createCollisionGeometry<fcl::OBBRSS, robot_state::AttachedBody>(shape, ab, shape_index);
+  return createCollisionGeometry<fcl::OBBRSS<double>, robot_state::AttachedBody>(shape, ab, shape_index);
 }
 
 FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, const World::Object* obj)
 {
-  return createCollisionGeometry<fcl::OBBRSS, World::Object>(shape, obj, 0);
+  return createCollisionGeometry<fcl::OBBRSS<double>, World::Object>(shape, obj, 0);
 }
 
 template <typename BV, typename T>
@@ -757,29 +758,29 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
 FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, double scale, double padding,
                                             const robot_model::LinkModel* link, int shape_index)
 {
-  return createCollisionGeometry<fcl::OBBRSS, robot_model::LinkModel>(shape, scale, padding, link, shape_index);
+  return createCollisionGeometry<fcl::OBBRSS<double>, robot_model::LinkModel>(shape, scale, padding, link, shape_index);
 }
 
 FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, double scale, double padding,
                                             const robot_state::AttachedBody* ab, int shape_index)
 {
-  return createCollisionGeometry<fcl::OBBRSS, robot_state::AttachedBody>(shape, scale, padding, ab, shape_index);
+  return createCollisionGeometry<fcl::OBBRSS<double>, robot_state::AttachedBody>(shape, scale, padding, ab, shape_index);
 }
 
 FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, double scale, double padding,
                                             const World::Object* obj)
 {
-  return createCollisionGeometry<fcl::OBBRSS, World::Object>(shape, scale, padding, obj, 0);
+  return createCollisionGeometry<fcl::OBBRSS<double>, World::Object>(shape, scale, padding, obj, 0);
 }
 
 void cleanCollisionGeometryCache()
 {
-  FCLShapeCache& cache1 = GetShapeCache<fcl::OBBRSS, World::Object>();
+  FCLShapeCache& cache1 = GetShapeCache<fcl::OBBRSS<double>, World::Object>();
   {
     boost::mutex::scoped_lock slock(cache1.lock_);
     cache1.bumpUseCount(true);
   }
-  FCLShapeCache& cache2 = GetShapeCache<fcl::OBBRSS, robot_state::AttachedBody>();
+  FCLShapeCache& cache2 = GetShapeCache<fcl::OBBRSS<double>, robot_state::AttachedBody>();
   {
     boost::mutex::scoped_lock slock(cache2.lock_);
     cache2.bumpUseCount(true);
@@ -795,16 +796,16 @@ void collision_detection::CollisionData::enableGroup(const robot_model::RobotMod
     active_components_only_ = nullptr;
 }
 
-void collision_detection::FCLObject::registerTo(fcl::BroadPhaseCollisionManager* manager)
+void collision_detection::FCLObject::registerTo(fcl::BroadPhaseCollisionManager<double>* manager)
 {
-  std::vector<fcl::CollisionObject*> collision_objects(collision_objects_.size());
+  std::vector<fcl::CollisionObject<double>*> collision_objects(collision_objects_.size());
   for (std::size_t i = 0; i < collision_objects_.size(); ++i)
     collision_objects[i] = collision_objects_[i].get();
   if (!collision_objects.empty())
     manager->registerObjects(collision_objects);
 }
 
-void collision_detection::FCLObject::unregisterFrom(fcl::BroadPhaseCollisionManager* manager)
+void collision_detection::FCLObject::unregisterFrom(fcl::BroadPhaseCollisionManager<double>* manager)
 {
   for (auto& collision_object : collision_objects_)
     manager->unregisterObject(collision_object.get());
