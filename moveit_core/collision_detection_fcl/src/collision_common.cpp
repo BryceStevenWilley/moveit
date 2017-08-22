@@ -468,10 +468,8 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
   }
 
   fcl::DistanceResult<double> dist_result;
-  dist_result.update(cdata->res_->distance, nullptr, nullptr, fcl::DistanceResult::NONE,
+  dist_result.update(cdata->res_->distance, nullptr, nullptr, fcl::DistanceResult<double>::NONE,
                      fcl::DistanceResult::NONE);  // can be faster
-  dist_result.update(cdata->res_->distance, NULL, NULL, fcl::DistanceResult<double>::NONE,
-                     fcl::DistanceResult<double>::NONE);  // can be faster
   fcl::DistanceRequest<double> dist_request;
   dist_request.enable_signed_distance = true;
   dist_request.enable_nearest_points = true; // Need for Jacobian stuff.
