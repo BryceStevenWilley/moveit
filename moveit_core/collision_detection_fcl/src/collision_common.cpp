@@ -474,7 +474,8 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
                      fcl::DistanceResult<double>::NONE);  // can be faster
   fcl::DistanceRequest<double> dist_request;
   dist_request.enable_signed_distance = true;
-  const double d = fcl::distance(o1, o2, fcl::DistanceRequest<double>(), dist_result);
+  dist_request.enable_nearest_points = true; // Need for Jacobian stuff.
+  const double d = fcl::distance(o1, o2, dist_request, dist_result);
 
   if (cdata->req_->verbose)
     CONSOLE_BRIDGE_logDebug("Distance between %s and %s: %f", cd1->getID().c_str(), cd2->getID().c_str(), d);
@@ -482,7 +483,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
   if (d < 0)  // a penetration was found, no further distance calculations are necessary
   {
     cdata->done_ = true;
-    cdata->res_->distance = -1;
+    cdata->res_->distance = d;
   }
   else
   {
@@ -495,6 +496,23 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
     }
   }
 
+  if (cdata->req_->contacts) {
+      // Add closests points (not really contacts).
+      const std::pair<std::string, std::string>& pc = (cd1->getID() < cd2->getID()) ?
+                                                        std::make_pair(cd1->getID(), cd2->getID()) :
+                                                        std::make_pair(cd2->getID(), cd1->getID());
+      Contact c;
+      // TODO: which of the nearest points to use?
+      c.pos = Eigen::Vector3d(dist_result.nearest_points[0][0], dist_result.nearest_points[0][1], dist_result.nearest_points[0][2]);
+      const CollisionGeometryData* cgd1 = static_cast<const CollisionGeometryData*>(dist_result.o1->getUserData());
+      c.body_name_1 = cgd1->getID();
+      c.body_type_1 = cgd1->type;
+      const CollisionGeometryData* cgd2 = static_cast<const CollisionGeometryData*>(dist_result.o2->getUserData());
+      c.body_name_2 = cgd2->getID();
+      c.body_type_2 = cgd2->type;
+      cdata->res_->contacts[pc].push_back(c);
+      cdata->res_->contact_count++;
+  }
   min_dist = cdata->res_->distance;
 
   return cdata->done_;

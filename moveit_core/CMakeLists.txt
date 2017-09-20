@@ -27,8 +27,11 @@ pkg_check_modules(LIBFCL REQUIRED fcl)
 find_library(LIBFCL_LIBRARIES_FULL ${LIBFCL_LIBRARIES} ${LIBFCL_LIBRARY_DIRS})
 set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
 
+message("fcl includedirs: ${LIB_FCL_INCLUDE_DIRS}")
+
 # TODO: Bryce is an awful person.
 set(LIBFCL_LIBRARIES "/home/brycew/fcl/build/lib/libfcl.so")
+set(LIBFCL_INCLUDE_DIRS "/home/brycew/fcl/build/include/")
 
 find_package(octomap REQUIRED)
 

@@ -105,6 +105,10 @@ void BenchmarkExecutor::initialize(const std::vector<std::string>& plugin_classe
   // Load the planning plugins
   const std::vector<std::string>& classes = planner_plugin_loader_->getDeclaredClasses();
 
+  for (std::size_t i = 0; i < classes.size(); i++) {
+      ROS_INFO("Declared classes: %s", classes[i].c_str());
+  }
+
   for (std::size_t i = 0; i < plugin_classes.size(); ++i)
   {
     std::vector<std::string>::const_iterator it = std::find(classes.begin(), classes.end(), plugin_classes[i]);
@@ -117,7 +121,7 @@ void BenchmarkExecutor::initialize(const std::vector<std::string>& plugin_classe
     try
     {
       planning_interface::PlannerManagerPtr p = planner_plugin_loader_->createUniqueInstance(plugin_classes[i]);
-      p->initialize(planning_scene_->getRobotModel(), "");
+      p->initialize(planning_scene_->getRobotModel(), "/moveit_run_benchmark");
 
       const planning_interface::PlannerConfigurationMap& config_map = p->getPlannerConfigurations();
 
@@ -284,15 +288,21 @@ bool BenchmarkExecutor::queriesAndPlannersCompatible(const std::vector<Benchmark
 bool BenchmarkExecutor::initializeBenchmarks(const BenchmarkOptions& opts, moveit_msgs::PlanningScene& scene_msg,
                                              std::vector<BenchmarkRequest>& requests)
 {
+  ROS_INFO("Initializing the benchmarks by conecting to the database.");
+  //ros::Duration(1.0).sleep(); //sleep for 1 second so db can come up.
+  sleep(1);
+  ROS_INFO("Done waiting");
   if (!plannerConfigurationsExist(opts.getPlannerConfigurations(), opts.getGroupName()))
     return false;
 
   try
   {
+    ROS_INFO("Connecting to db...");
     warehouse_ros::DatabaseConnection::Ptr conn = dbloader.loadDatabase();
     conn->setParams(opts.getHostName(), opts.getPort(), 20);
     if (conn->connect())
     {
+      ROS_INFO("Connected to db!");
       pss_ = new moveit_warehouse::PlanningSceneStorage(conn);
       psws_ = new moveit_warehouse::PlanningSceneWorldStorage(conn);
       rs_ = new moveit_warehouse::RobotStateStorage(conn);
@@ -530,15 +540,18 @@ bool BenchmarkExecutor::plannerConfigurationsExist(const std::map<std::string, s
        ++it)
   {
     planning_interface::PlannerManagerPtr pm = planner_interfaces_[it->first];
+    ROS_INFO("Planners begin: %s", it->first.c_str());
     const planning_interface::PlannerConfigurationMap& config_map = pm->getPlannerConfigurations();
 
     for (std::size_t i = 0; i < it->second.size(); ++i)
     {
       bool planner_exists = false;
+      std::string planner_name = group_name + "[" + it->second[i] + "]";
+      ROS_INFO("Looking for planner name %s", planner_name.c_str());
       for (planning_interface::PlannerConfigurationMap::const_iterator map_it = config_map.begin();
            map_it != config_map.end() && !planner_exists; ++map_it)
       {
-        std::string planner_name = group_name + "[" + it->second[i] + "]";
+        ROS_INFO("Config map has %s, group of %s", map_it->second.name.c_str(), map_it->second.group.c_str());
         planner_exists = (map_it->second.group == group_name && map_it->second.name == planner_name);
       }
 
@@ -546,7 +559,7 @@ bool BenchmarkExecutor::plannerConfigurationsExist(const std::map<std::string, s
       {
         ROS_ERROR("Planner '%s' does NOT exist for group '%s' in pipeline '%s'", it->second[i].c_str(),
                   group_name.c_str(), it->first.c_str());
-        std::cout << "There are " << config_map.size() << " planner entries: " << std::endl;
+        ROS_ERROR("There are %zu planner entries", config_map.size());
         for (planning_interface::PlannerConfigurationMap::const_iterator map_it = config_map.begin();
              map_it != config_map.end() && !planner_exists; ++map_it)
           std::cout << map_it->second.name << std::endl;
