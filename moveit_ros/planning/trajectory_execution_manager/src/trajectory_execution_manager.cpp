@@ -855,8 +855,33 @@ bool TrajectoryExecutionManager::distributeTrajectory(const moveit_msgs::RobotTr
               trajectory.multi_dof_joint_trajectory.points[j].time_from_start;
           parts[i].multi_dof_joint_trajectory.points[j].transforms.resize(bijection.size());
           for (std::size_t k = 0; k < bijection.size(); ++k)
+          {
             parts[i].multi_dof_joint_trajectory.points[j].transforms[k] =
                 trajectory.multi_dof_joint_trajectory.points[j].transforms[bijection[k]];
+
+            if (!trajectory.multi_dof_joint_trajectory.points[j].velocities.empty())
+            {
+              parts[i].multi_dof_joint_trajectory.points[j].velocities.resize(bijection.size());
+
+              parts[i].multi_dof_joint_trajectory.points[j].velocities[0].linear.x =
+                  trajectory.multi_dof_joint_trajectory.points[j].velocities[0].linear.x * execution_velocity_scaling_;
+
+              parts[i].multi_dof_joint_trajectory.points[j].velocities[0].linear.y =
+                  trajectory.multi_dof_joint_trajectory.points[j].velocities[0].linear.y * execution_velocity_scaling_;
+
+              parts[i].multi_dof_joint_trajectory.points[j].velocities[0].linear.z =
+                  trajectory.multi_dof_joint_trajectory.points[j].velocities[0].linear.z * execution_velocity_scaling_;
+
+              parts[i].multi_dof_joint_trajectory.points[j].velocities[0].angular.x =
+                  trajectory.multi_dof_joint_trajectory.points[j].velocities[0].angular.x * execution_velocity_scaling_;
+
+              parts[i].multi_dof_joint_trajectory.points[j].velocities[0].angular.y =
+                  trajectory.multi_dof_joint_trajectory.points[j].velocities[0].angular.y * execution_velocity_scaling_;
+
+              parts[i].multi_dof_joint_trajectory.points[j].velocities[0].angular.z =
+                  trajectory.multi_dof_joint_trajectory.points[j].velocities[0].angular.z * execution_velocity_scaling_;
+            }
+          }
         }
       }
       if (!intersect_single.empty())
@@ -1323,7 +1348,8 @@ bool TrajectoryExecutionManager::executePart(std::size_t part_index)
     for (std::size_t i = 0; i < context.trajectory_parts_.size(); ++i)
     {
       ros::Duration d(0.0);
-      if (!context.trajectory_parts_[i].joint_trajectory.points.empty())
+      if (!(context.trajectory_parts_[i].joint_trajectory.points.empty() &&
+            context.trajectory_parts_[i].multi_dof_joint_trajectory.points.empty()))
       {
         if (context.trajectory_parts_[i].joint_trajectory.header.stamp > current_time)
           d = context.trajectory_parts_[i].joint_trajectory.header.stamp - current_time;
