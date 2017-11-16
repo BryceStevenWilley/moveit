@@ -56,6 +56,9 @@ bool collisionCallback(fcl::CollisionObject* o1, fcl::CollisionObject* o2, void*
   if (cd1->sameObject(*cd2))
     return false;
 
+  if (cd1->getID() == cd2->getID())
+    return false;
+
   // If active components are specified
   if (cdata->active_components_only_)
   {
