@@ -380,7 +380,7 @@ void ChompOptimizer::optimize()
     else
     {
       // TODO: uncomment this too
-      //if (cost < best_group_trajectory_cost_)
+      if (cost < best_group_trajectory_cost_)
       {
         best_group_trajectory_ = group_trajectory_.getTrajectory();
         best_group_trajectory_cost_ = cost;

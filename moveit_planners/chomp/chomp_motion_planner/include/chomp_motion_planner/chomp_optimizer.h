@@ -218,6 +218,13 @@ private:
   void calculatePseudoInverse();
   void computeJointProperties(int trajectoryPoint);
   bool isCurrentTrajectoryMeshToMeshCollisionFree() const;
+
+  /** Visualizing stuff about CHOMP. */
+  ros::NodeHandle node_handle_;
+  ros::Publisher vis_marker_array_pub_;
+  void animatePath();
+
+  void visualizeState(int);
 };
 }
 

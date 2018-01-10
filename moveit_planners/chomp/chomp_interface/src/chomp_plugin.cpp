@@ -56,12 +56,19 @@ public:
     // model->printModelInfo(std::cout);
     std::vector<std::string> groups = model->getJointModelGroupNames();
     ROS_INFO_STREAM("Following groups exist:");
+    planning_interface::PlannerConfigurationMap pconfig;
     for (int i = 0; i < groups.size(); i++)
     {
       ROS_INFO("%s", groups[i].c_str());
       planning_contexts_[groups[i]] =
           CHOMPPlanningContextPtr(new CHOMPPlanningContext("chomp_planning_context", groups[i], model));
+      planning_interface::PlannerConfigurationSettings pc;
+      pc.name = groups[i] + "[CHOMP]";
+      pc.group = groups[i];
+      pconfig[groups[i] + "[CHOMP]"] = pc;
     }
+    config_settings_ = pconfig;
+    setPlannerConfigurations(pconfig);
     return true;
   }
 
@@ -86,6 +93,7 @@ public:
     }
 
     planning_contexts_.at(req.group_name)->setMotionPlanRequest(req);
+    planning_scene->printKnownObjects(std::cout);
     planning_contexts_.at(req.group_name)->setPlanningScene(planning_scene);
     error_code.val = moveit_msgs::MoveItErrorCodes::SUCCESS;
     return planning_contexts_.at(req.group_name);
@@ -113,6 +121,6 @@ protected:
   std::map<std::string, CHOMPPlanningContextPtr> planning_contexts_;
 };
 
-}  // ompl_interface_ros
+}  // chomp_interface
 
 PLUGINLIB_EXPORT_CLASS(chomp_interface::CHOMPPlannerManager, planning_interface::PlannerManager);
