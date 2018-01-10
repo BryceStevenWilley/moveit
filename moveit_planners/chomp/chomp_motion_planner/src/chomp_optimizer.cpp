@@ -43,6 +43,8 @@
 #include <moveit/planning_scene/planning_scene.h>
 #include <eigen3/Eigen/LU>
 #include <eigen3/Eigen/Core>
+#include <moveit/collision_distance_field/collision_common_distance_field.h>
+#include <eigen_conversions/eigen_msg.h>
 
 namespace chomp
 {
@@ -64,6 +66,7 @@ ChompOptimizer::ChompOptimizer(ChompTrajectory* trajectory, const planning_scene
   , start_state_(start_state)
   , initialized_(false)
 {
+  vis_marker_array_pub_ = node_handle_.advertise<visualization_msgs::MarkerArray>("visualization_marker_array", 0);
   std::vector<std::string> cd_names;
   planning_scene->getCollisionDetectorNames(cd_names);
 
@@ -333,19 +336,22 @@ void ChompOptimizer::optimize()
   double minimaThreshold = 0.05;
   bool should_break_out = false;
 
-  // if(parameters_->getAnimatePath())
-  // {
-  //   animatePath();
-  // }
+  
+  if(parameters_->getAnimatePath())
+  {
+    animatePath();
+  }
 
   // iterate
   for (iteration_ = 0; iteration_ < parameters_->getMaxIterations(); iteration_++)
   {
     ros::WallTime for_time = ros::WallTime::now();
     performForwardKinematics();
-    ROS_INFO_STREAM("Forward kinematics took " << (ros::WallTime::now() - for_time));
+    //ROS_INFO_STREAM("Forward kinematics took " << (ros::WallTime::now() - for_time));
     double cCost = getCollisionCost();
     double sCost = getSmoothnessCost();
+    debugCost();
+    //ROS_INFO_STREAM("Collision Cost: " << cCost << ", and Smoothness Cost: " << sCost);
     double cost = cCost + sCost;
 
     // ROS_INFO_STREAM("Collision cost " << cCost << " smoothness cost " << sCost);
@@ -373,7 +379,8 @@ void ChompOptimizer::optimize()
     }
     else
     {
-      if (cost < best_group_trajectory_cost_)
+      // TODO: uncomment this too
+      //if (cost < best_group_trajectory_cost_)
       {
         best_group_trajectory_ = group_trajectory_.getTrajectory();
         best_group_trajectory_cost_ = cost;
@@ -405,6 +412,7 @@ void ChompOptimizer::optimize()
     if (iteration_ % 10 == 0)
     {
       ROS_INFO("iteration: %d", iteration_);
+      ROS_INFO_STREAM("Collision Cost: " << cCost << ", and Smoothness Cost: " << sCost);
       if (isCurrentTrajectoryMeshToMeshCollisionFree())
       {
         num_collision_free_iterations_ = 0;
@@ -510,10 +518,10 @@ void ChompOptimizer::optimize()
     //   animateEndeffector();
     // }
 
-    // if(parameters_->getAnimatePath() && iteration_ % 25 == 0)
-    // {
-    //   animatePath();
-    // }
+    if(parameters_->getAnimatePath() && iteration_ % 50 == 0)
+    {
+      animatePath();
+    }
 
     if (should_break_out)
     {
@@ -543,16 +551,16 @@ void ChompOptimizer::optimize()
     ROS_ERROR("Chomp path is not collision free!");
   }
 
-  // if(parameters_->getAnimatePath())
-  // {
-  //   animatePath();
-  // }
+  if(parameters_->getAnimatePath())
+  {
+    animatePath();
+  }
 
   group_trajectory_.getTrajectory() = best_group_trajectory_;
   updateFullTrajectory();
 
-  // if(parameters_->getAnimatePath())
-  //   animatePath();
+  if(parameters_->getAnimatePath())
+    animatePath();
 
   ROS_INFO("Terminated after %d iterations, using path from iteration %d", iteration_, last_improvement_iteration_);
   ROS_INFO("Optimization core finished in %f sec", (ros::WallTime::now() - start_time).toSec());
@@ -741,9 +749,11 @@ void ChompOptimizer::updateFullTrajectory()
 void ChompOptimizer::debugCost()
 {
   double cost = 0.0;
-  for (int i = 0; i < num_joints_; i++)
-    cost += joint_costs_[i].getCost(group_trajectory_.getJointTrajectory(i));
-  std::cout << "Cost = " << cost << std::endl;
+  for (int i = 0; i < num_joints_; i++) {
+    double joint_cost = joint_costs_[i].getCost(group_trajectory_.getJointTrajectory(i));
+    //std::cout << "Joint " << i << " Cost = " << joint_cost << std::endl;
+    cost += joint_cost;
+  }
 }
 
 double ChompOptimizer::getTrajectoryCost()
@@ -1153,15 +1163,117 @@ void ChompOptimizer::updatePositionFromMomentum()
   group_trajectory_.getFreeTrajectoryBlock() += eps * momentum_;
 }
 
-// void ChompOptimizer::animatePath()
-// {
-//   for(int i = free_vars_start_; i <= free_vars_end_; i++)
-//   {
-//     visualizeState(i);
-//     //ros::WallDuration(group_trajectory_.getDiscretization()).sleep();
-//     ros::WallDuration(.05).sleep();
-//   }
-// }
+void getChompBodySphereVisualizationMarkers(collision_detection::GroupStateRepresentationConstPtr gsr, std::string reference_frame,
+                                       visualization_msgs::MarkerArray& body_marker_array)
+{
+  // creating namespaces
+  std::string robot_ns = gsr->dfce_->group_name_ + "_sphere_decomposition";
+  std::string attached_ns = "attached_sphere_decomposition";
+
+  // creating colors
+  std_msgs::ColorRGBA robot_color;
+  robot_color.r = 0;
+  robot_color.b = 0.8f;
+  robot_color.g = 0;
+  robot_color.a = 0.5;
+
+  std_msgs::ColorRGBA attached_color;
+  attached_color.r = 1;
+  attached_color.g = 1;
+  attached_color.b = 0;
+  attached_color.a = 0.5;
+
+  // creating sphere marker
+  visualization_msgs::Marker sphere_marker;
+  sphere_marker.header.frame_id = reference_frame;
+  sphere_marker.header.stamp = ros::Time(0);
+  sphere_marker.ns = robot_ns;
+  sphere_marker.id = 0;
+  sphere_marker.type = visualization_msgs::Marker::SPHERE;
+  sphere_marker.action = visualization_msgs::Marker::ADD;
+  sphere_marker.pose.orientation.x = 0;
+  sphere_marker.pose.orientation.y = 0;
+  sphere_marker.pose.orientation.z = 0;
+  sphere_marker.pose.orientation.w = 1;
+  sphere_marker.color = robot_color;
+  sphere_marker.lifetime = ros::Duration(0);
+
+  const moveit::core::RobotState& state = *(gsr->dfce_->state_);
+  unsigned int id = 0;
+  for (unsigned int i = 0; i < gsr->dfce_->link_names_.size(); i++)
+  {
+    const moveit::core::LinkModel* ls = state.getLinkModel(gsr->dfce_->link_names_[i]);
+    if (gsr->dfce_->link_has_geometry_[i])
+    {
+      gsr->link_body_decompositions_[i]->updatePose(state.getFrameTransform(ls->getName()));
+
+      collision_detection::PosedBodySphereDecompositionConstPtr sphere_representation =
+          gsr->link_body_decompositions_[i];
+      for (unsigned int j = 0; j < sphere_representation->getCollisionSpheres().size(); j++)
+      {
+        tf::pointEigenToMsg(sphere_representation->getSphereCenters()[j], sphere_marker.pose.position);
+        sphere_marker.scale.x = sphere_marker.scale.y = sphere_marker.scale.z =
+            sphere_representation->getCollisionSpheres()[j].radius_;
+        sphere_marker.id = id;
+        id++;
+
+        body_marker_array.markers.push_back(sphere_marker);
+      }
+    }
+  }
+
+  sphere_marker.ns = attached_ns;
+  sphere_marker.color = attached_color;
+  for (unsigned int i = 0; i < gsr->dfce_->attached_body_names_.size(); i++)
+  {
+    int link_index = gsr->dfce_->attached_body_link_state_indices_[i];
+    const moveit::core::AttachedBody* att = state.getAttachedBody(gsr->dfce_->attached_body_names_[i]);
+    if (!att)
+    {
+      ROS_WARN("Attached body '%s' was not found, skipping sphere "
+               "decomposition visualization",
+               gsr->dfce_->attached_body_names_[i].c_str());
+      continue;
+    }
+
+    if (gsr->attached_body_decompositions_[i]->getSize() != att->getShapes().size())
+    {
+      ROS_WARN("Attached body size discrepancy");
+      continue;
+    }
+
+    for (unsigned int j = 0; j < att->getShapes().size(); j++)
+    {
+      collision_detection::PosedBodySphereDecompositionVectorPtr sphere_decp = gsr->attached_body_decompositions_[i];
+      sphere_decp->updatePose(j, att->getGlobalCollisionBodyTransforms()[j]);
+
+      tf::pointEigenToMsg(sphere_decp->getSphereCenters()[j], sphere_marker.pose.position);
+      sphere_marker.scale.x = sphere_marker.scale.y = sphere_marker.scale.z =
+          sphere_decp->getCollisionSpheres()[j].radius_;
+      sphere_marker.id = id;
+      body_marker_array.markers.push_back(sphere_marker);
+      id++;
+    }
+  }
+}
+
+void ChompOptimizer::animatePath()
+{
+  // Publish the collision spheres for the first link.
+  /*
+  visualization_msgs::MarkerArray marker_array;
+  getChompBodySphereVisualizationMarkers(gsr_, "/world", marker_array);
+  // Publish somehow.
+  vis_marker_array_pub_.publish(marker_array);
+  */
+  // Visualize the entire path.
+  for(int i = free_vars_start_; i <= free_vars_end_; i++)
+  {
+    visualizeState(i);
+    //ros::WallDuration(group_trajectory_.getDiscretization()).sleep();
+    ros::WallDuration(.05).sleep();
+  }
+}
 
 // void ChompOptimizer::animateEndeffector()
 // {
@@ -1195,73 +1307,75 @@ void ChompOptimizer::updatePositionFromMomentum()
 
 // }
 
-// void ChompOptimizer::visualizeState(int index)
-// {
 
-//   visualization_msgs::MarkerArray msg;
-//   msg.markers.resize(num_collision_points_ + num_joints_);
-//   int num_arrows = 0;
-//   double potential_threshold = 1e-10;
-//   for(int i = 0; i < num_collision_points_; i++)
-//   {
-//     msg.markers[i].header.frame_id = collision_space_->getCollisionModelsInterface()->getRobotFrameId();
-//     msg.markers[i].header.stamp = ros::Time();
-//     msg.markers[i].ns = "chomp_collisions";
-//     msg.markers[i].id = i;
-//     msg.markers[i].type = visualization_msgs::Marker::SPHERE;
-//     msg.markers[i].action = visualization_msgs::Marker::ADD;
-//     msg.markers[i].pose.position.x = collision_point_pos_eigen_[index][i][0];
-//     msg.markers[i].pose.position.y = collision_point_pos_eigen_[index][i][1];
-//     msg.markers[i].pose.position.z = collision_point_pos_eigen_[index][i][2];
-//     msg.markers[i].pose.orientation.x = 0.0;
-//     msg.markers[i].pose.orientation.y = 0.0;
-//     msg.markers[i].pose.orientation.z = 0.0;
-//     msg.markers[i].pose.orientation.w = 1.0;
-//     double scale = 0.1;
-//     msg.markers[i].scale.x = scale;
-//     msg.markers[i].scale.y = scale;
-//     msg.markers[i].scale.z = scale;
-//     msg.markers[i].color.a = 0.6;
-//     msg.markers[i].color.r = 0.5;
-//     msg.markers[i].color.g = 1.0;
-//     msg.markers[i].color.b = 0.3;
-//     if(collision_point_potential_[index][i] > potential_threshold)
-//       num_arrows++;
-//   }
+void ChompOptimizer::visualizeState(int index)
+{
 
-//   vis_marker_array_pub_.publish(msg);
+  visualization_msgs::MarkerArray msg;
+  msg.markers.resize(num_collision_points_ + num_joints_);
+  int num_arrows = 0;
+  double potential_threshold = 1e-10;
+  for(int i = 0; i < num_collision_points_; i++)
+  {
+    msg.markers[i].header.frame_id = "/world"; //collision_space_->getCollisionModelsInterface()->getRobotFrameId();
+    msg.markers[i].header.stamp = ros::Time();
+    msg.markers[i].ns = "chomp_collisions";
+    msg.markers[i].id = i;
+    msg.markers[i].type = visualization_msgs::Marker::SPHERE;
+    msg.markers[i].action = visualization_msgs::Marker::ADD;
+    msg.markers[i].pose.position.x = collision_point_pos_eigen_[index][i][0];
+    msg.markers[i].pose.position.y = collision_point_pos_eigen_[index][i][1];
+    msg.markers[i].pose.position.z = collision_point_pos_eigen_[index][i][2];
+    msg.markers[i].pose.orientation.x = 0.0;
+    msg.markers[i].pose.orientation.y = 0.0;
+    msg.markers[i].pose.orientation.z = 0.0;
+    msg.markers[i].pose.orientation.w = 1.0;
+    double scale = 0.1;
+    msg.markers[i].scale.x = scale;
+    msg.markers[i].scale.y = scale;
+    msg.markers[i].scale.z = scale;
+    msg.markers[i].color.a = 0.6;
+    msg.markers[i].color.r = 0.5;
+    msg.markers[i].color.g = 1.0;
+    msg.markers[i].color.b = 0.3;
+    if(collision_point_potential_[index][i] > potential_threshold)
+      num_arrows++;
+    }
 
-//   // publish arrows for distance field:
-//   msg.markers.resize(0);
-//   msg.markers.resize(num_collision_points_);
-//   for(int i = 0; i < num_collision_points_; i++)
-//   {
-//     msg.markers[i].header.frame_id = collision_space_->getCollisionModelsInterface()->getRobotFrameId();
-//     msg.markers[i].header.stamp = ros::Time();
-//     msg.markers[i].ns = "chomp_arrows";
-//     msg.markers[i].id = i;
-//     msg.markers[i].type = visualization_msgs::Marker::ARROW;
-//     msg.markers[i].action = visualization_msgs::Marker::ADD;
-//     msg.markers[i].points.resize(2);
-//     msg.markers[i].points[0].x = collision_point_pos_eigen_[index][i](0);
-//     msg.markers[i].points[0].y = collision_point_pos_eigen_[index][i](1);
-//     msg.markers[i].points[0].z = collision_point_pos_eigen_[index][i](2);
-//     msg.markers[i].points[1] = msg.markers[i].points[0];
-//     double scale = 0.25f;
-//     if(collision_point_potential_[index][i] <= potential_threshold)
-//       scale = 0.0;
-//     msg.markers[i].points[1].x += scale * collision_point_potential_gradient_[index][i](0);
-//     msg.markers[i].points[1].y += scale * collision_point_potential_gradient_[index][i](1);
-//     msg.markers[i].points[1].z += scale * collision_point_potential_gradient_[index][i](2);
-//     msg.markers[i].scale.x = 0.01;
-//     msg.markers[i].scale.y = 0.03;
-//     msg.markers[i].color.a = 0.5;
-//     msg.markers[i].color.r = 0.5;
-//     msg.markers[i].color.g = 0.5;
-//     msg.markers[i].color.b = 1.0;
-//   }
-//   vis_marker_array_pub_.publish(msg);
+  vis_marker_array_pub_.publish(msg);
 
-// }
+  // publish arrows for distance field:
+  msg.markers.resize(0);
+  msg.markers.resize(num_collision_points_);
+  for(int i = 0; i < num_collision_points_; i++)
+  {
+    msg.markers[i].header.frame_id = "/world"; //collision_space_->getCollisionModelsInterface()->getRobotFrameId();
+    msg.markers[i].header.stamp = ros::Time();
+    msg.markers[i].ns = "chomp_arrows";
+    msg.markers[i].id = i;
+    msg.markers[i].type = visualization_msgs::Marker::ARROW;
+    msg.markers[i].action = visualization_msgs::Marker::ADD;
+    msg.markers[i].points.resize(2);
+    msg.markers[i].points[0].x = collision_point_pos_eigen_[index][i](0);
+    msg.markers[i].points[0].y = collision_point_pos_eigen_[index][i](1);
+    msg.markers[i].points[0].z = collision_point_pos_eigen_[index][i](2);
+    msg.markers[i].points[1] = msg.markers[i].points[0];
+    double scale = 0.25f;
+    if(collision_point_potential_[index][i] <= potential_threshold)
+      scale = 0.0;
+    msg.markers[i].points[1].x += scale * collision_point_potential_gradient_[index][i](0);
+    msg.markers[i].points[1].y += scale * collision_point_potential_gradient_[index][i](1);
+    msg.markers[i].points[1].z += scale * collision_point_potential_gradient_[index][i](2);
+    msg.markers[i].scale.x = 0.01;
+    msg.markers[i].scale.y = 0.03;
+    msg.markers[i].color.a = 0.5;
+    msg.markers[i].color.r = 0.5;
+    msg.markers[i].color.g = 0.5;
+    msg.markers[i].color.b = 1.0;
+  }
+  vis_marker_array_pub_.publish(msg);
+
+}
+
 
 }  // namespace chomp

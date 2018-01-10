@@ -125,8 +125,9 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
   }
 
   const Eigen::MatrixXd goal_state = trajectory.getTrajectoryPoint(goal_index);
-
-  if (not planning_scene->getRobotModel()->satisfiesPositionBounds(goal_state.data()))
+  
+  if (not planning_scene->getRobotModel()->getJointModelGroup(req.group_name)->
+      satisfiesPositionBounds(goal_state.data()))
   {
     ROS_ERROR_STREAM_NAMED("chomp_planner", "Goal state violates joint limits");
     res.error_code.val = moveit_msgs::MoveItErrorCodes::INVALID_ROBOT_STATE;
@@ -191,6 +192,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
   // report planning failure if path has collisions
   if (not optimizer.isCollisionFree())
   {
+    // TODO: uncomment when we see what the final path looks like.
     res.error_code.val = moveit_msgs::MoveItErrorCodes::INVALID_MOTION_PLAN;
     return false;
   }
