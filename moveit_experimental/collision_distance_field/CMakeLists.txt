@@ -24,6 +24,11 @@ add_library(collision_detector_hybrid_plugin src/collision_detector_hybrid_plugi
 set_target_properties(collision_detector_hybrid_plugin PROPERTIES VERSION ${${PROJECT_NAME}_VERSION})
 target_link_libraries(collision_detector_hybrid_plugin ${catkin_LIBRARIES} ${MOVEIT_LIB_NAME})
 
+# Adds another library for a full distance field collision detector.
+add_library(collision_detector_distance_field_plugin src/collision_detector_distance_field_plugin_loader.cpp)
+set_target_properties(collision_detector_distance_field_plugin PROPERTIES VERSION ${${PROJECT_NAME}_VERSION})
+target_link_libraries(collision_detector_distance_field_plugin ${catkin_LIBRARIES} ${MOVEIT_LIB_NAME})
+
 install(TARGETS ${MOVEIT_LIB_NAME} collision_detector_hybrid_plugin
   LIBRARY DESTINATION lib)
 
