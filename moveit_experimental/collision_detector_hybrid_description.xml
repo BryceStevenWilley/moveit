@@ -5,3 +5,12 @@
     </description>
   </class>
 </library>
+
+<library path="lib/libcollision_detector_distance_field_plugin">
+  <class name="Distance_Field" type="collision_detection::CollisionDetectorDistanceFieldPluginLoader"
+  base_class_type="collision_detection::CollisionPlugin">
+    <description>
+      The Distance Field Collision Detector, only uses distance fields.
+    </description>
+  </class>
+</library>
