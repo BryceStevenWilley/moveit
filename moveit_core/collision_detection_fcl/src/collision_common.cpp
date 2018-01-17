@@ -648,7 +648,11 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
     othercache.lock_.unlock();
   }
 
+<<<<<<< HEAD
   fcl::CollisionGeometry<double>* cg_g = nullptr;
+=======
+  fcl::CollisionGeometry<double>* cg_g = NULL;
+>>>>>>> 957f76810bc7f0470ea32c7f7ee69b4815f4fa65
   if (shape->type == shapes::PLANE)  // shapes that directly produce CollisionGeometry
   {
     // handle cases individually

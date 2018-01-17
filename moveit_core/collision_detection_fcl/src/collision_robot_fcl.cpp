@@ -96,7 +96,11 @@ void collision_detection::CollisionRobotFCL::constructFCLObject(const robot_stat
       transform2fcl(state.getCollisionBodyTransform(geoms_[i]->collision_geometry_data_->ptr.link,
                                                     geoms_[i]->collision_geometry_data_->shape_index),
                     fcl_td);
+<<<<<<< HEAD
       auto collObj = new fcl::CollisionObject<double>(*fcl_objs_[i]);
+=======
+      fcl::CollisionObject<double>* collObj = new fcl::CollisionObject<double>(*fcl_objs_[i]);
+>>>>>>> 957f76810bc7f0470ea32c7f7ee69b4815f4fa65
       collObj->setTransform(fcl_td);
       collObj->computeAABB();
       fcl_obj.collision_objects_.push_back(FCLCollisionObjectPtr(collObj));
@@ -126,7 +130,11 @@ void collision_detection::CollisionRobotFCL::constructFCLObject(const robot_stat
 void collision_detection::CollisionRobotFCL::allocSelfCollisionBroadPhase(const robot_state::RobotState& state,
                                                                           FCLManager& manager) const
 {
+<<<<<<< HEAD
   auto m = new fcl::DynamicAABBTreeCollisionManager<double>();
+=======
+  fcl::DynamicAABBTreeCollisionManager<double>* m = new fcl::DynamicAABBTreeCollisionManager<double>();
+>>>>>>> 957f76810bc7f0470ea32c7f7ee69b4815f4fa65
   // m->tree_init_level = 2;
   manager.manager_.reset(m);
   constructFCLObject(state, manager.object_);
