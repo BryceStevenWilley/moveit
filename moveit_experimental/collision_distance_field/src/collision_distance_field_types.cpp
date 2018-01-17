@@ -204,12 +204,14 @@ bool collision_detection::getCollisionSphereCollision(const distance_field::Dist
 
     if (!in_bounds && grad.norm() > 0)
     {
-      ROS_DEBUG("Collision sphere point is out of bounds");
+      ROS_INFO("Collision sphere point is out of bounds");
       return true;
     }
 
     if ((maximum_value > dist) && (sphere_list[i].radius_ - dist > tolerance))
     {
+      ROS_INFO("Collision sphere %d (at position %f, %f, %f, gradient %f, %f, %f) is %f away from an obstacle", 
+                i, p.x(), p.y(), p.z(), grad.x(), grad.y(), grad.z(), dist);
       return true;
     }
   }
@@ -435,10 +437,14 @@ void collision_detection::getCollisionSphereMarkers(
         sphere.pose.position.x = posed_decompositions[i]->getSphereCenters()[j].x();
         sphere.pose.position.y = posed_decompositions[i]->getSphereCenters()[j].y();
         sphere.pose.position.z = posed_decompositions[i]->getSphereCenters()[j].z();
+        sphere.pose.orientation.x = 0.0;
+        sphere.pose.orientation.y = 0.0;
+        sphere.pose.orientation.z = 0.0;
+        sphere.pose.orientation.w = 1.0;
         arr.markers.push_back(sphere);
       }
     }
-  }
+  } 
 }
 
 void collision_detection::getProximityGradientMarkers(
