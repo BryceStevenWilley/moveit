@@ -254,6 +254,10 @@ protected:
   std::map<std::string, GroupStateRepresentationPtr> pregenerated_group_state_representation_map_;
 
   planning_scene::PlanningScenePtr planning_scene_;
+
+  // For visualizing the collision spheres.
+  ros::NodeHandle node_handle_;
+  ros::Publisher vis_marker_array_pub_;
 };
 }
 

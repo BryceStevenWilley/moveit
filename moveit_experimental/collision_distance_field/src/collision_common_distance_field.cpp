@@ -178,7 +178,7 @@ void getBodySphereVisualizationMarkers(GroupStateRepresentationConstPtr& gsr, st
       {
         tf::pointEigenToMsg(sphere_representation->getSphereCenters()[j], sphere_marker.pose.position);
         sphere_marker.scale.x = sphere_marker.scale.y = sphere_marker.scale.z =
-            sphere_representation->getCollisionSpheres()[j].radius_;
+                sphere_representation->getCollisionSpheres()[j].radius_ * 2.0;
         sphere_marker.id = id;
         id++;
 

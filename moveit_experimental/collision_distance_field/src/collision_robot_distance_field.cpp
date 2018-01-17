@@ -103,6 +103,7 @@ void CollisionRobotDistanceField::initialize(
     const Eigen::Vector3d& origin, bool use_signed_distance_field, double resolution, double collision_tolerance,
     double max_propogation_distance)
 {
+  vis_marker_array_pub_ = node_handle_.advertise<visualization_msgs::MarkerArray>("visualization_marker_array", 0);
   size_ = size;
   origin_ = origin;
   use_signed_distance_field_ = use_signed_distance_field;
@@ -142,6 +143,8 @@ void CollisionRobotDistanceField::generateCollisionCheckingStructures(
   {
     // ROS_DEBUG_STREAM_NAMED("distance_field","Generating new
     // DistanceFieldCacheEntry for CollisionRobot");
+    ROS_INFO_STREAM("Allowed Collision Matrix: ");
+    acm->print(std::cerr);
     DistanceFieldCacheEntryPtr new_dfce =
         generateDistanceFieldCacheEntry(group_name, state, acm, generate_distance_field);
     boost::mutex::scoped_lock slock(update_cache_lock_);
@@ -317,7 +320,16 @@ bool CollisionRobotDistanceField::getSelfCollisions(const collision_detection::C
                                               *sphere_centers_1, max_propogation_distance_, collision_tolerance_);
       if (coll)
       {
-        ROS_DEBUG("Link %s in self collision", gsr->dfce_->link_names_[i].c_str());
+        visualization_msgs::MarkerArray marker_array;
+        std_msgs::ColorRGBA color;
+        color.r = 1.0;
+        color.g = 0.0;
+        color.b = 0.0;
+        color.a = 1.0;
+        getCollisionSphereMarkers(color, "/world", "", ros::Duration(0), gsr->link_body_decompositions_, 
+                                  marker_array);
+        vis_marker_array_pub_.publish(marker_array);
+        ROS_INFO("Link %s in self collision", gsr->dfce_->link_names_[i].c_str());
         res.collision = true;
         return true;
       }
@@ -1259,7 +1271,7 @@ bool CollisionRobotDistanceField::compareCacheEntryToState(const DistanceFieldCa
 
   if (dfce->state_values_.size() != new_state_values.size())
   {
-    ROS_ERROR("State value size mismatch");
+    ROS_ERROR("State value size mismatch: old %zu vs new %zu", dfce->state_values_.size(), new_state_values.size());
     return false;
   }
 
