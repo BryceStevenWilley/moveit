@@ -43,11 +43,7 @@
 
 collision_detection::CollisionWorldFCL::CollisionWorldFCL() : CollisionWorld()
 {
-<<<<<<< HEAD
   auto m = new fcl::DynamicAABBTreeCollisionManager<double>();
-=======
-  fcl::DynamicAABBTreeCollisionManager<double>* m = new fcl::DynamicAABBTreeCollisionManager<double>();
->>>>>>> 957f76810bc7f0470ea32c7f7ee69b4815f4fa65
   // m->tree_init_level = 2;
   manager_.reset(m);
 
@@ -57,11 +53,7 @@ collision_detection::CollisionWorldFCL::CollisionWorldFCL() : CollisionWorld()
 
 collision_detection::CollisionWorldFCL::CollisionWorldFCL(const WorldPtr& world) : CollisionWorld(world)
 {
-<<<<<<< HEAD
   auto m = new fcl::DynamicAABBTreeCollisionManager<double>();
-=======
-  fcl::DynamicAABBTreeCollisionManager<double>* m = new fcl::DynamicAABBTreeCollisionManager<double>();
->>>>>>> 957f76810bc7f0470ea32c7f7ee69b4815f4fa65
   // m->tree_init_level = 2;
   manager_.reset(m);
 
@@ -73,11 +65,7 @@ collision_detection::CollisionWorldFCL::CollisionWorldFCL(const WorldPtr& world)
 collision_detection::CollisionWorldFCL::CollisionWorldFCL(const CollisionWorldFCL& other, const WorldPtr& world)
   : CollisionWorld(other, world)
 {
-<<<<<<< HEAD
   auto m = new fcl::DynamicAABBTreeCollisionManager<double>();
-=======
-  fcl::DynamicAABBTreeCollisionManager<double>* m = new fcl::DynamicAABBTreeCollisionManager<double>();
->>>>>>> 957f76810bc7f0470ea32c7f7ee69b4815f4fa65
   // m->tree_init_level = 2;
   manager_.reset(m);
 
@@ -179,11 +167,7 @@ void collision_detection::CollisionWorldFCL::constructFCLObject(const World::Obj
     FCLGeometryConstPtr g = createCollisionGeometry(obj->shapes_[i], obj);
     if (g)
     {
-<<<<<<< HEAD
       auto co = new fcl::CollisionObject<double>(g->collision_geometry_, transform2fcl(obj->shape_poses_[i]));
-=======
-      fcl::CollisionObject<double>* co = new fcl::CollisionObject<double>(g->collision_geometry_, transform2fcl(obj->shape_poses_[i]));
->>>>>>> 957f76810bc7f0470ea32c7f7ee69b4815f4fa65
       fcl_obj.collision_objects_.push_back(FCLCollisionObjectPtr(co));
       fcl_obj.collision_geometry_.push_back(g);
     }

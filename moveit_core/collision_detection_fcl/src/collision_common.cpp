@@ -469,7 +469,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
 
   fcl::DistanceResult<double> dist_result;
   dist_result.update(cdata->res_->distance, nullptr, nullptr, fcl::DistanceResult<double>::NONE,
-                     fcl::DistanceResult::NONE);  // can be faster
+                     fcl::DistanceResult<double>::NONE);  // can be faster
   fcl::DistanceRequest<double> dist_request;
   dist_request.enable_signed_distance = true;
   dist_request.enable_nearest_points = true; // Need for Jacobian stuff.
@@ -648,11 +648,7 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
     othercache.lock_.unlock();
   }
 
-<<<<<<< HEAD
   fcl::CollisionGeometry<double>* cg_g = nullptr;
-=======
-  fcl::CollisionGeometry<double>* cg_g = NULL;
->>>>>>> 957f76810bc7f0470ea32c7f7ee69b4815f4fa65
   if (shape->type == shapes::PLANE)  // shapes that directly produce CollisionGeometry
   {
     // handle cases individually
