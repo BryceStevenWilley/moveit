@@ -67,7 +67,7 @@ int main(int argc, char** argv)
       "trials", boost::program_options::value<unsigned int>(&trials)->default_value(trials),
       "Number of collision checks to perform with each thread")("wait",
                                                                 "Wait for a user command (so the planning scene can be "
-                                                                "updated in thre background)")("help", "this screen");
+                                                                "updated in the background)")("help", "this screen");
   boost::program_options::variables_map vm;
   boost::program_options::parsed_options po = boost::program_options::parse_command_line(argc, argv, desc);
   boost::program_options::store(po, vm);
@@ -107,9 +107,11 @@ int main(int argc, char** argv)
         state->setToRandomPositions();
         state->update();
         collision_detection::CollisionResult res;
-        psm.getPlanningScene()->checkCollision(req, res);
+        ROS_INFO("Calling check collision");
+        psm.getPlanningScene()->checkCollision(req, res, *state);
         if (!res.collision)
           break;
+        ROS_INFO("Failed, trying a different random position.");
       } while (true);
       states.push_back(robot_state::RobotStatePtr(state));
     }
