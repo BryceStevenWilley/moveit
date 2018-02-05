@@ -71,13 +71,15 @@ CollisionWorldDistanceField::CollisionWorldDistanceField(const WorldPtr& world, 
                                                          double resolution, double collision_tolerance,
                                                          double max_propogation_distance)
   : CollisionWorld(world)
-  , size_(size_)
-  , origin_(origin_)
+  , size_(size)
+  , origin_(origin)
   , use_signed_distance_field_(use_signed_distance_field)
   , resolution_(resolution)
   , collision_tolerance_(collision_tolerance)
   , max_propogation_distance_(max_propogation_distance)
 {
+  ROS_DEBUG("World size: %f, %f, %f\nWorld Origin: %f, %f, %f", size_.x(), size_.y(), size_.z(), 
+                                                                origin_.x(), origin_.y(), origin.z());
   distance_field_cache_entry_ = generateDistanceFieldCacheEntry();
 
   // request notifications about changes to world
@@ -109,41 +111,8 @@ void CollisionWorldDistanceField::checkCollision(const CollisionRequest& req, Co
                                                  const robot_state::RobotState& state) const
 {
   GroupStateRepresentationPtr gsr;
-  checkCollision(req, res, robot, state, gsr);
-}
-
-void CollisionWorldDistanceField::checkCollision(const CollisionRequest& req, CollisionResult& res,
-                                                 const CollisionRobot& robot, const robot_state::RobotState& state,
-                                                 GroupStateRepresentationPtr& gsr) const
-{
-  try
-  {
-    const CollisionRobotDistanceField& cdr = dynamic_cast<const CollisionRobotDistanceField&>(robot);
-    if (!gsr)
-    {
-      cdr.generateCollisionCheckingStructures(req.group_name, state, NULL, gsr, true);
-    }
-    else
-    {
-      cdr.updateGroupStateRepresentationState(state, gsr);
-    }
-    bool done = cdr.getSelfCollisions(req, res, gsr);
-    if (!done)
-    {
-      done = cdr.getIntraGroupCollisions(req, res, gsr);
-    }
-    if (!done)
-    {
-      getEnvironmentCollisions(req, res, distance_field_cache_entry_->distance_field_, gsr);
-    }
-  }
-  catch (const std::bad_cast& e)
-  {
-    ROS_ERROR_STREAM("Could not cast CollisionRobot to CollisionRobotDistanceField, " << e.what());
-    return;
-  }
-
-  (const_cast<CollisionWorldDistanceField*>(this))->last_gsr_ = gsr;
+  // Pass nullptr for AllowedCollisionMatrix.
+  checkCollisionHelper(req, res, robot, state, nullptr, gsr);
 }
 
 void CollisionWorldDistanceField::checkCollision(const CollisionRequest& req, CollisionResult& res,
@@ -151,20 +120,28 @@ void CollisionWorldDistanceField::checkCollision(const CollisionRequest& req, Co
                                                  const AllowedCollisionMatrix& acm) const
 {
   GroupStateRepresentationPtr gsr;
-  checkCollision(req, res, robot, state, acm, gsr);
+  checkCollisionHelper(req, res, robot, state, &acm, gsr);
 }
 
-void CollisionWorldDistanceField::checkCollision(const CollisionRequest& req, CollisionResult& res,
-                                                 const CollisionRobot& robot, const robot_state::RobotState& state,
-                                                 const AllowedCollisionMatrix& acm,
-                                                 GroupStateRepresentationPtr& gsr) const
+void CollisionWorldDistanceField::checkCollisionHelper(const CollisionRequest& req, CollisionResult& res,
+                                                       const CollisionRobot& robot,
+                                                       const robot_state::RobotState& state,
+                                                       const AllowedCollisionMatrix *acm,
+                                                       GroupStateRepresentationPtr& gsr) const
 {
   try
   {
     const CollisionRobotDistanceField& cdr = dynamic_cast<const CollisionRobotDistanceField&>(robot);
+    if (req.group_name == "")
+    {
+      // TODO(brycew): make/check the collisions for each group of the robot.
+      // For now, this will turn off the anoying prints from Rviz.
+      ROS_WARN("Not currently checking with empty groups.");
+      return;
+    }
     if (!gsr)
     {
-      cdr.generateCollisionCheckingStructures(req.group_name, state, &acm, gsr, true);
+      cdr.generateCollisionCheckingStructures(req.group_name, state, acm, gsr, true);
     }
     else
     {
@@ -194,36 +171,7 @@ void CollisionWorldDistanceField::checkRobotCollision(const CollisionRequest& re
                                                       const robot_state::RobotState& state) const
 {
   GroupStateRepresentationPtr gsr;
-  checkRobotCollision(req, res, robot, state, gsr);
-}
-
-void CollisionWorldDistanceField::checkRobotCollision(const CollisionRequest& req, CollisionResult& res,
-                                                      const CollisionRobot& robot, const robot_state::RobotState& state,
-                                                      GroupStateRepresentationPtr& gsr) const
-{
-  distance_field::DistanceFieldConstPtr env_distance_field = distance_field_cache_entry_->distance_field_;
-  try
-  {
-    const CollisionRobotDistanceField& cdr = dynamic_cast<const CollisionRobotDistanceField&>(robot);
-    DistanceFieldCacheEntryConstPtr dfce;
-    if (!gsr)
-    {
-      cdr.generateCollisionCheckingStructures(req.group_name, state, NULL, gsr, false);
-    }
-    else
-    {
-      cdr.updateGroupStateRepresentationState(state, gsr);
-    }
-    getEnvironmentCollisions(req, res, env_distance_field, gsr);
-    (const_cast<CollisionWorldDistanceField*>(this))->last_gsr_ = gsr;
-
-    // checkRobotCollisionHelper(req, res, robot, state, &acm);
-  }
-  catch (const std::bad_cast& e)
-  {
-    ROS_ERROR_STREAM("Could not cast CollisionRobot to CollisionRobotDistanceField, " << e.what());
-    return;
-  }
+  checkRobotCollisionHelper(req, res, robot, state, nullptr, gsr);
 }
 
 void CollisionWorldDistanceField::checkRobotCollision(const CollisionRequest& req, CollisionResult& res,
@@ -231,22 +179,30 @@ void CollisionWorldDistanceField::checkRobotCollision(const CollisionRequest& re
                                                       const AllowedCollisionMatrix& acm) const
 {
   GroupStateRepresentationPtr gsr;
-  checkRobotCollision(req, res, robot, state, acm, gsr);
+  checkRobotCollisionHelper(req, res, robot, state, &acm, gsr);
 }
 
-void CollisionWorldDistanceField::checkRobotCollision(const CollisionRequest& req, CollisionResult& res,
-                                                      const CollisionRobot& robot, const robot_state::RobotState& state,
-                                                      const AllowedCollisionMatrix& acm,
-                                                      GroupStateRepresentationPtr& gsr) const
+void CollisionWorldDistanceField::checkRobotCollisionHelper(const CollisionRequest& req, CollisionResult& res,
+                                                            const CollisionRobot& robot,
+                                                            const robot_state::RobotState& state,
+                                                            const AllowedCollisionMatrix *acm,
+                                                            GroupStateRepresentationPtr& gsr) const
 {
   distance_field::DistanceFieldConstPtr env_distance_field = distance_field_cache_entry_->distance_field_;
   try
   {
     const CollisionRobotDistanceField& cdr = dynamic_cast<const CollisionRobotDistanceField&>(robot);
+    if (req.group_name == "")
+    {
+      // TODO(brycew): make/check the collisions for each group of the robot.
+      // For now, this will turn off the anoying prints from Rviz.
+      ROS_WARN("Not currently checking with empty groups.");
+      return;
+    }
     DistanceFieldCacheEntryPtr dfce;
     if (!gsr)
     {
-      cdr.generateCollisionCheckingStructures(req.group_name, state, &acm, gsr, true);
+      cdr.generateCollisionCheckingStructures(req.group_name, state, acm, gsr, true);
     }
     else
     {
@@ -262,6 +218,7 @@ void CollisionWorldDistanceField::checkRobotCollision(const CollisionRequest& re
     ROS_ERROR_STREAM("Could not cast CollisionRobot to CollisionRobotDistanceField, " << e.what());
     return;
   }
+  
 }
 
 void CollisionWorldDistanceField::getCollisionGradients(const CollisionRequest& req, CollisionResult& res,
@@ -274,6 +231,12 @@ void CollisionWorldDistanceField::getCollisionGradients(const CollisionRequest& 
   try
   {
     const CollisionRobotDistanceField& cdr = dynamic_cast<const CollisionRobotDistanceField&>(robot);
+    if (req.group_name == "")
+    {
+      // TODO(brycew): make/check the collisions for each group of the robot.
+      // For now, this will turn off the anoying prints from Rviz.
+      return;
+    }
     if (!gsr)
     {
       cdr.generateCollisionCheckingStructures(req.group_name, state, acm, gsr, true);
@@ -303,6 +266,12 @@ void CollisionWorldDistanceField::getAllCollisions(const CollisionRequest& req, 
   try
   {
     const CollisionRobotDistanceField& cdr = dynamic_cast<const CollisionRobotDistanceField&>(robot);
+    if (req.group_name == "")
+    {
+      // TODO(brycew): make/check the collisions for each group of the robot.
+      // For now, this will turn off the anoying prints from Rviz.
+      return;
+    }
     if (!gsr)
     {
       cdr.generateCollisionCheckingStructures(req.group_name, state, acm, gsr, true);
@@ -329,6 +298,11 @@ bool CollisionWorldDistanceField::getEnvironmentCollisions(
     const CollisionRequest& req, CollisionResult& res, const distance_field::DistanceFieldConstPtr& env_distance_field,
     GroupStateRepresentationPtr& gsr) const
 {
+  if (env_distance_field.get()->getSizeX() > 0) {
+    std::ofstream out;
+    out.open("/tmp/df-testing-field.json");
+    env_distance_field.get()->writeJsonToStream(out);
+  }
   for (unsigned int i = 0; i < gsr->dfce_->link_names_.size() + gsr->dfce_->attached_body_names_.size(); i++)
   {
     bool is_link = i < gsr->dfce_->link_names_.size();
@@ -412,6 +386,11 @@ bool CollisionWorldDistanceField::getEnvironmentCollisions(
 bool CollisionWorldDistanceField::getEnvironmentProximityGradients(
     const distance_field::DistanceFieldConstPtr& env_distance_field, GroupStateRepresentationPtr& gsr) const
 {
+  if (env_distance_field.get()->getSizeX() > 0) {
+    std::ofstream out;
+    out.open("/tmp/df-testing-field-prox-grad.json");
+    env_distance_field.get()->writeJsonToStream(out);
+  }
   bool in_collision = false;
   for (unsigned int i = 0; i < gsr->dfce_->link_names_.size(); i++)
   {
@@ -456,6 +435,7 @@ void CollisionWorldDistanceField::setWorld(const WorldPtr& world)
   getWorld()->removeObserver(observer_handle_);
 
   // clear out objects from old world
+  // TODO(brycew): but do they ever get re-added?
   distance_field_cache_entry_->distance_field_->reset();
 
   CollisionWorld::setWorld(world);
@@ -476,6 +456,18 @@ void CollisionWorldDistanceField::notifyObjectChange(CollisionWorldDistanceField
   EigenSTL::vector_Vector3d add_points;
   EigenSTL::vector_Vector3d subtract_points;
   self->updateDistanceObject(obj->id_, self->distance_field_cache_entry_, add_points, subtract_points);
+
+  // Recognize when an object has been added outside the existing size of the DF.
+  double new_size_x = 0.0, new_size_y = 0.0, new_size_z = 0.0;
+  for (auto pt : add_points)
+  {
+    new_size_x = std::max(new_size_x, pt.x());
+    new_size_y = std::max(new_size_y, pt.y());
+    new_size_z = std::max(new_size_z, pt.z());
+  }
+  distance_field::DistanceFieldPtr df = self->distance_field_cache_entry_->distance_field_;
+  // TODO: resize if necessary.
+  //if (df.getSizeX) 
 
   if (action == World::DESTROY)
   {
