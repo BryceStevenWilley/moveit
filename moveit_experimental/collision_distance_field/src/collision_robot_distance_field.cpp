@@ -127,6 +127,7 @@ void CollisionRobotDistanceField::initialize(
     }
     in_group_update_map_[jm->getName()] = updated_group_entry;
     state.updateLinkTransforms();
+    ROS_INFO("Generating DFCE for group '%s' (init)", jm->getName().c_str());
     DistanceFieldCacheEntryPtr dfce =
         generateDistanceFieldCacheEntry(jm->getName(), state, &planning_scene_->getAllowedCollisionMatrix(), false);
     getGroupStateRepresentation(dfce, state, pregenerated_group_state_representation_map_[jm->getName()]);
@@ -139,12 +140,13 @@ void CollisionRobotDistanceField::generateCollisionCheckingStructures(
     bool generate_distance_field) const
 {
   DistanceFieldCacheEntryConstPtr dfce = getDistanceFieldCacheEntry(group_name, state, acm);
-  if (!dfce || (generate_distance_field && !dfce->distance_field_))
+  if (!dfce || (generate_distance_field && dfce->distance_fields_.empty()))
   {
     // ROS_DEBUG_STREAM_NAMED("distance_field","Generating new
     // DistanceFieldCacheEntry for CollisionRobot");
-    ROS_INFO_STREAM("Allowed Collision Matrix: ");
-    acm->print(std::cerr);
+    //ROS_INFO_STREAM("Allowed Collision Matrix: ");
+    //acm->print(std::cerr);
+    ROS_INFO("Generating DFCE for group '%s' (generateCCStruct)", group_name.c_str());
     DistanceFieldCacheEntryPtr new_dfce =
         generateDistanceFieldCacheEntry(group_name, state, acm, generate_distance_field);
     boost::mutex::scoped_lock slock(update_cache_lock_);
@@ -160,6 +162,12 @@ void CollisionRobotDistanceField::checkSelfCollisionHelper(const collision_detec
                                                            const collision_detection::AllowedCollisionMatrix* acm,
                                                            GroupStateRepresentationPtr& gsr) const
 {
+  if (req.group_name == "")
+  {
+    // TODO(brycew): make/check the collisions for each group of the robot.
+    // For now, this will turn off the anoying prints from Rviz.
+    return;
+  }
   if (!gsr)
   {
     generateCollisionCheckingStructures(req.group_name, state, acm, gsr, true);
@@ -259,14 +267,17 @@ bool CollisionRobotDistanceField::getSelfCollisions(const collision_detection::C
       continue;
     const std::vector<CollisionSphere>* collision_spheres_1;
     const EigenSTL::vector_Vector3d* sphere_centers_1;
+    std::string name;
 
     if (is_link)
     {
+      name = gsr->dfce_->link_names_[i];
       collision_spheres_1 = &(gsr->link_body_decompositions_[i]->getCollisionSpheres());
       sphere_centers_1 = &(gsr->link_body_decompositions_[i]->getSphereCenters());
     }
     else
     {
+      name = gsr->dfce_->attached_body_names_[i - gsr->dfce_->link_names_.size()];
       collision_spheres_1 =
           &(gsr->attached_body_decompositions_[i - gsr->dfce_->link_names_.size()]->getCollisionSpheres());
       sphere_centers_1 = &(gsr->attached_body_decompositions_[i - gsr->dfce_->link_names_.size()]->getSphereCenters());
@@ -276,7 +287,7 @@ bool CollisionRobotDistanceField::getSelfCollisions(const collision_detection::C
     {
       std::vector<unsigned int> colls;
       bool coll = getCollisionSphereCollision(
-          gsr->dfce_->distance_field_.get(), *collision_spheres_1, *sphere_centers_1, max_propogation_distance_,
+          gsr->dfce_->distance_fields_.find(name)->second.get(), *collision_spheres_1, *sphere_centers_1, max_propogation_distance_,
           collision_tolerance_, std::min(req.max_contacts_per_pair, req.max_contacts - res.contact_count), colls);
       if (coll)
       {
@@ -316,7 +327,7 @@ bool CollisionRobotDistanceField::getSelfCollisions(const collision_detection::C
     }
     else
     {
-      bool coll = getCollisionSphereCollision(gsr->dfce_->distance_field_.get(), *collision_spheres_1,
+      bool coll = getCollisionSphereCollision(gsr->dfce_->distance_fields_.find(name)->second.get(), *collision_spheres_1,
                                               *sphere_centers_1, max_propogation_distance_, collision_tolerance_);
       if (coll)
       {
@@ -329,7 +340,7 @@ bool CollisionRobotDistanceField::getSelfCollisions(const collision_detection::C
         getCollisionSphereMarkers(color, "/world", "", ros::Duration(0), gsr->link_body_decompositions_, 
                                   marker_array);
         vis_marker_array_pub_.publish(marker_array);
-        ROS_INFO("Link %s in self collision", gsr->dfce_->link_names_[i].c_str());
+        //ROS_INFO("Link %s in self collision", gsr->dfce_->link_names_[i].c_str());
         res.collision = true;
         return true;
       }
@@ -356,13 +367,17 @@ bool CollisionRobotDistanceField::getSelfProximityGradients(GroupStateRepresenta
 
     const std::vector<CollisionSphere>* collision_spheres_1;
     const EigenSTL::vector_Vector3d* sphere_centers_1;
+    std::string name;
+
     if (is_link)
     {
+      name = gsr->dfce_->link_names_[i];
       collision_spheres_1 = &(gsr->link_body_decompositions_[i]->getCollisionSpheres());
       sphere_centers_1 = &(gsr->link_body_decompositions_[i]->getSphereCenters());
     }
     else
     {
+      name = gsr->dfce_->attached_body_names_[i - gsr->dfce_->link_names_.size()];
       collision_spheres_1 =
           &(gsr->attached_body_decompositions_[i - gsr->dfce_->link_names_.size()]->getCollisionSpheres());
       sphere_centers_1 = &(gsr->attached_body_decompositions_[i - gsr->dfce_->link_names_.size()]->getSphereCenters());
@@ -403,7 +418,7 @@ bool CollisionRobotDistanceField::getSelfProximityGradients(GroupStateRepresenta
       }
     }
 
-    coll = getCollisionSphereGradients(gsr->dfce_->distance_field_.get(), *collision_spheres_1, *sphere_centers_1,
+    coll = getCollisionSphereGradients(gsr->dfce_->distance_fields_.find(name)->second.get(), *collision_spheres_1, *sphere_centers_1,
                                        gsr->gradients_[i], collision_detection::SELF, collision_tolerance_, false,
                                        max_propogation_distance_, false);
 
@@ -718,7 +733,7 @@ DistanceFieldCacheEntryPtr CollisionRobotDistanceField::generateDistanceFieldCac
   ros::WallTime n = ros::WallTime::now();
   DistanceFieldCacheEntryPtr dfce(new DistanceFieldCacheEntry());
 
-  if (robot_model_->getJointModelGroup(group_name) == NULL)
+  if (not robot_model_->hasJointModelGroup(group_name))
   {
     ROS_WARN("No group %s", group_name.c_str());
     return dfce;
@@ -904,21 +919,49 @@ DistanceFieldCacheEntryPtr CollisionRobotDistanceField::generateDistanceFieldCac
 
   if (generate_distance_field)
   {
-    if (dfce->distance_field_)
+    if (not dfce->distance_fields_.empty())
     {
       ROS_DEBUG_STREAM("CollisionRobot skipping distance field generation, "
                        "will use existing one");
     }
     else
     {
+      //ROS_INFO_STREAM("Making new distance field.");
       std::vector<PosedBodyPointDecompositionPtr> non_group_link_decompositions;
       std::vector<PosedBodyPointDecompositionVectorPtr> non_group_attached_body_decompositions;
       const std::map<std::string, bool>& updated_group_map = in_group_update_map_.find(group_name)->second;
+      // Get the ACM values of each link for each of the base links of the robot and make a set of vectors.
+      std::set<std::vector<collision_detection::AllowedCollision::Type> > all_df_combos;
+      std::map<std::vector<collision_detection::AllowedCollision::Type>, distance_field::DistanceFieldPtr> all_dfs;
+      std::map<std::string, std::vector<collision_detection::AllowedCollision::Type> > link_name_to_base_relations;
+      for (auto group_link_name : dfce->link_names_)
+      {
+        //ROS_INFO_STREAM("Link " << group_link_name << " has collisions values of/with...");
+        std::vector<collision_detection::AllowedCollision::Type> vec_for_link_name;
+        for (auto base_link : robot_model_->getLinkModelsWithCollisionGeometry())
+        {
+          auto base_link_name = base_link->getName();
+          if (updated_group_map.find(base_link_name) != updated_group_map.end())
+          {
+            continue;
+          }
+          // Get the ACM values.
+          collision_detection::AllowedCollision::Type type;
+          dfce->acm_.getEntry(group_link_name, base_link_name, type);
+          vec_for_link_name.push_back(type);
+          //ROS_INFO_STREAM(base_link_name << "(base): " << type);
+        }
+        // set part should get rid of duplicates.
+        all_df_combos.insert(vec_for_link_name);
+        link_name_to_base_relations[group_link_name] = vec_for_link_name;
+      }
+
+      // Build body_decompositions.
       for (unsigned int i = 0; i < robot_model_->getLinkModelsWithCollisionGeometry().size(); i++)
       {
         std::string link_name = robot_model_->getLinkModelsWithCollisionGeometry()[i]->getName();
         const moveit::core::LinkModel* link_state = dfce->state_->getLinkModel(link_name);
-        if (updated_group_map.find(link_name) != updated_group_map.end())
+        if (updated_group_map.find(link_name) != updated_group_map.end()) // || dfce->
         {
           continue;
         }
@@ -926,7 +969,6 @@ DistanceFieldCacheEntryPtr CollisionRobotDistanceField::generateDistanceFieldCac
         // populating array with link that are not part of the planning group
         non_group_link_decompositions.push_back(getPosedLinkBodyPointDecomposition(link_state));
         non_group_link_decompositions.back()->updatePose(dfce->state_->getFrameTransform(link_state->getName()));
-
         std::vector<const moveit::core::AttachedBody*> attached_bodies;
         dfce->state_->getAttachedBodies(attached_bodies, link_state);
         for (unsigned int j = 0; j < attached_bodies.size(); j++)
@@ -935,30 +977,42 @@ DistanceFieldCacheEntryPtr CollisionRobotDistanceField::generateDistanceFieldCac
               getAttachedBodyPointDecomposition(attached_bodies[j], resolution_));
         }
       }
-      dfce->distance_field_.reset(new distance_field::PropagationDistanceField(
+
+      for (auto acm_vec : all_df_combos)
+      {
+        // acm_vec's entries are in the same order as non_group_*_decompositions. 
+        // So each index represents the same body.
+        distance_field::DistanceFieldPtr df(new distance_field::PropagationDistanceField(
           size_.x(), size_.y(), size_.z(), resolution_, origin_.x() - 0.5 * size_.x(), origin_.y() - 0.5 * size_.y(),
           origin_.z() - 0.5 * size_.z(), max_propogation_distance_, use_signed_distance_field_));
+        ROS_DEBUG("Making distance field with size %f, %f, %f", size_.x(), size_.y(), size_.z());
+        EigenSTL::vector_Vector3d all_points;
+        for (unsigned int i = 0; i < non_group_link_decompositions.size(); i++)
+        {
+          if (acm_vec[i] == collision_detection::AllowedCollision::Type::NEVER)
+          {
+              all_points.insert(all_points.end(), non_group_link_decompositions[i]->getCollisionPoints().begin(),
+                                non_group_link_decompositions[i]->getCollisionPoints().end());
+          }
+        }
 
-      // ROS_INFO_STREAM("Creation took " <<
-      // (ros::WallTime::now()-before_create).toSec());
-      // TODO - deal with AllowedCollisionMatrix
-      // now we need to actually set the points
-      // TODO - deal with shifted robot
-      EigenSTL::vector_Vector3d all_points;
-      for (unsigned int i = 0; i < non_group_link_decompositions.size(); i++)
-      {
-        all_points.insert(all_points.end(), non_group_link_decompositions[i]->getCollisionPoints().begin(),
-                          non_group_link_decompositions[i]->getCollisionPoints().end());
+        // TODO: use the ACM for attached bodies as well?
+        for (unsigned int i = 0; i < non_group_attached_body_decompositions.size(); i++)
+        {
+          all_points.insert(all_points.end(), non_group_attached_body_decompositions[i]->getCollisionPoints().begin(),
+                            non_group_attached_body_decompositions[i]->getCollisionPoints().end());
+        }
+
+        df->addPointsToField(all_points);
+        //ROS_INFO_STREAM("CollisionRobot distance field has been initialized with " << all_points.size() << " points.");
+        all_dfs[acm_vec] = df;
       }
 
-      for (unsigned int i = 0; i < non_group_attached_body_decompositions.size(); i++)
+      // Assign each link to a distance field.
+      for (auto name : dfce->link_names_)
       {
-        all_points.insert(all_points.end(), non_group_attached_body_decompositions[i]->getCollisionPoints().begin(),
-                          non_group_attached_body_decompositions[i]->getCollisionPoints().end());
+        dfce->distance_fields_[name] = all_dfs[link_name_to_base_relations[name]];
       }
-
-      dfce->distance_field_->addPointsToField(all_points);
-      ROS_DEBUG_STREAM("CollisionRobot distance field has been initialized with " << all_points.size() << " points.");
     }
   }
   return dfce;

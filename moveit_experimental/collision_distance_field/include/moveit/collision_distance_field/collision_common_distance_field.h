@@ -129,9 +129,33 @@ struct DistanceFieldCacheEntry
   /* the acm used when generating this dfce.  This dfce cannot be used to check
    * collisions with a different acm. */
   collision_detection::AllowedCollisionMatrix acm_;
-  /** the distance field describing all links of the robot that are not in the
-   * group and their attached bodies */
-  distance_field::DistanceFieldPtr distance_field_;
+  /** The links not in the group being planned for. Specifically,
+   * each link in the group is either ALLOW or NEVER in the ACM for each of 
+   * these links. */
+  std::vector<std::string> links_not_in_group;
+  /** the distance fields describing all links of the robot that are not in the
+   * group and their attached bodies.
+   * Since for any given link in the group, the ACM could be different, we need a 
+   * distance field for each combination of the non-group link ACM values. 
+   * 
+   * For example, for a 3 link manipulator, with links a, b, and c, attached to a mobile
+   * robot with a wheel base and a torso (think Fetch). The ACM might look like this:
+   * (remember, 1 is always allow collisions, 0 is never allow collisions).
+   *         base     torso   a  b  c
+   * base     -         1     0  0  0
+   * torso    1         -     1  0  0
+   * a        0         1     -  1  0
+   * b        0         0     1  -  1
+   * c        0         0     0  1  -
+   *  
+   * Since we don't need to (and shouldn't, spheres are too big and always collide)
+   * check for collisions between a and the torso as they are attached. But, this means
+   * there are two distance fields that the group needs: one with only the base, used to
+   * check link a, and one with the base and with the torso, for b and c.
+   * We can access the only-base distance field relate to link a with the following:
+   * distance_field::DistanceFieldPtr correct_field = dfce.distance_fields_["a"];
+   */
+  std::map<std::string, distance_field::DistanceFieldPtr> distance_fields_;
   /** this can be used as a starting point for creating a
    * GroupStateRepresentation needed for collision checking */
   GroupStateRepresentationPtr pregenerated_group_state_representation_;
@@ -159,10 +183,11 @@ struct DistanceFieldCacheEntry
    * true if this link should be checked for self collision */
   std::vector<bool> self_collision_enabled_;
   /** for each link in link_names_, a vector of bool indicating for each other
-   * object (where object could be another link or an attacjed object) whether
+   * object (where object could be another link or an attached object) whether
    * to check for collisions between this link and that object.  Size of inner
    * and outer lists are the same and equal the sum of the size of link_names_
    * and attached_body_names_ */
+  // NOTE(brycew): This is misleading: link_names has all links below the group as well.
   std::vector<std::vector<bool>> intra_group_collision_enabled_;
 };
 

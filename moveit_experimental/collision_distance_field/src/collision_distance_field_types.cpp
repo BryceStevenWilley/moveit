@@ -204,14 +204,14 @@ bool collision_detection::getCollisionSphereCollision(const distance_field::Dist
 
     if (!in_bounds && grad.norm() > 0)
     {
-      ROS_INFO("Collision sphere point is out of bounds");
+      //ROS_INFO("Collision sphere point is out of bounds");
       return true;
     }
 
     if ((maximum_value > dist) && (sphere_list[i].radius_ - dist > tolerance))
     {
-      ROS_INFO("Collision sphere %d (at position %f, %f, %f, gradient %f, %f, %f) is %f away from an obstacle", 
-                i, p.x(), p.y(), p.z(), grad.x(), grad.y(), grad.z(), dist);
+      ROS_INFO("Collision sphere %d (at position: %f, %f, %f, radius: %f), has dist %f (gradient: %f, %f, %f)", 
+                i, p.x(), p.y(), p.z(), sphere_list[i].radius_, dist, grad.x(), grad.y(), grad.z());
       return true;
     }
   }
@@ -308,6 +308,9 @@ void collision_detection::BodyDecomposition::init(const std::vector<shapes::Shap
   sphere_radii_.resize(collision_spheres_.size());
   for (unsigned int i = 0; i < collision_spheres_.size(); i++)
   {
+    // Attempt to make the collision spheres smaller.
+    // TODO: how should this pass throught?
+    collision_spheres_[i].radius_ *= 0.8;
     sphere_radii_[i] = collision_spheres_[i].radius_;
   }
 
