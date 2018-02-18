@@ -327,6 +327,41 @@ bool CollisionWorldDistanceField::getEnvironmentCollisions(
       sphere_centers_1 = &(gsr->attached_body_decompositions_[i - gsr->dfce_->link_names_.size()]->getSphereCenters());
     }
 
+    if (req.compute_gradient)
+    {
+      unsigned int coll;
+      bool is_in_coll = getCollisionSphereCollision(
+          env_distance_field.get(), *collision_spheres_1, *sphere_centers_1, max_propogation_distance_,
+          collision_tolerance_, res.gradient, coll);
+      if (is_in_coll)
+      {
+        res.collision = true;
+        // Set the one contact.
+        Contact con;
+        if (is_link)
+        {
+          con.pos = gsr->link_body_decompositions_[i]->getSphereCenters()[coll];
+          con.body_type_1 = BodyTypes::ROBOT_LINK;
+          con.body_name_1 = gsr->dfce_->link_names_[i];
+        }
+        else {
+          con.pos = gsr->attached_body_decompositions_[i - gsr->dfce_->link_names_.size()]->getSphereCenters()[coll];
+          con.body_type_1 = BodyTypes::ROBOT_ATTACHED;
+          con.body_name_1 = gsr->dfce_->attached_body_names_[i - gsr->dfce_->link_names_.size()];
+        }
+
+        con.body_type_2 = BodyTypes::WORLD_OBJECT;
+        con.body_name_2 = "environment";
+        res.contact_count++;
+        res.contacts[std::pair<std::string, std::string>(con.body_name_1, con.body_name_2)].push_back(con);
+        gsr->gradients_[i].types[coll] = ENVIRONMENT;
+
+        gsr->gradients_[i].collision = true;
+        return true;
+      }
+      return false;
+    }
+
     if (req.contacts)
     {
       std::vector<unsigned int> colls;

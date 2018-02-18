@@ -157,6 +157,9 @@ struct CollisionResult
   /** \brief Closest distance between two bodies */
   double distance;
 
+  /** \brief Gradient (aka normal between 2 bodies) (for DFs, should always be found). */
+  Eigen::Vector3d gradient;
+
   /** \brief Number of contacts returned */
   std::size_t contact_count;
 
@@ -180,6 +183,7 @@ struct CollisionRequest
     , max_cost_sources(1)
     , min_cost_density(0.2)
     , verbose(false)
+    , compute_gradient(false)
   {
   }
   virtual ~CollisionRequest()
@@ -216,6 +220,9 @@ struct CollisionRequest
 
   /** \brief Flag indicating whether information about detected collisions should be reported */
   bool verbose;
+    
+  /** \brief computes the gradient to move away from collisions. */
+  bool compute_gradient;
 };
 }
 

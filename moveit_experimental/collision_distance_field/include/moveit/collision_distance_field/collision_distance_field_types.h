@@ -216,6 +216,16 @@ bool getCollisionSphereCollision(const distance_field::DistanceField* distance_f
                                  const EigenSTL::vector_Vector3d& sphere_centers, double maximum_value,
                                  double tolerance, unsigned int num_coll, std::vector<unsigned int>& colls);
 
+/** 
+ * If true, then gradient will be filled with the workspace gradient from the DF, and the coll
+ * variable will be set to the closest link in contact. If false, grad will be uninitialized.
+ */
+bool getCollisionSphereCollision(const distance_field::DistanceField *distance_field,
+                                 const std::vector<CollisionSphere>& sphere_list,
+                                 const EigenSTL::vector_Vector3d& sphere_centers,
+                                 double maximum_value, double tolerance,
+                                 Eigen::Vector3d& grad, unsigned int &coll);
+
 // forward declaration required for friending apparently
 class BodyDecompositionVector;
 

@@ -255,6 +255,37 @@ bool collision_detection::getCollisionSphereCollision(const distance_field::Dist
   return colls.size() > 0;
 }
 
+bool collision_detection::getCollisionSphereCollision(const distance_field::DistanceField *distance_field,
+                                                      const std::vector<CollisionSphere>& sphere_list,
+                                                      const EigenSTL::vector_Vector3d& sphere_centers,
+                                                      double maximum_value, double tolerance,
+                                                      Eigen::Vector3d& grad, unsigned int& coll)
+{
+  double most_in_collision_distance = std::numeric_limits<double>::infinity();
+  for (unsigned int i = 0; i < sphere_list.size(); i++)
+  {
+    Eigen::Vector3d p = sphere_centers[i];
+    Eigen::Vector3d this_grad;
+    bool in_bounds = true;
+    double dist = distance_field->getDistanceGradient(p.x(), p.y(), p.z(), this_grad.x(), this_grad.y(), this_grad.z(), in_bounds);
+    if (!in_bounds && this_grad.norm() > 0)
+    {
+      ROS_DEBUG("Collision sphere point is out of bounds");
+      return true;
+    }
+    if (maximum_value > dist && (sphere_list[i].radius_ - dist > tolerance))
+    {
+      if ((dist - sphere_list[i].radius_) < most_in_collision_distance)
+      {
+        most_in_collision_distance = dist - sphere_list[i].radius_;
+        grad = this_grad;
+        coll = i;
+      }
+    }
+  }
+  return most_in_collision_distance < 0;
+}
+
 ///
 /// BodyDecomposition
 ///
