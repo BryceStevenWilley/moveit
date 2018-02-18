@@ -210,8 +210,8 @@ bool collision_detection::getCollisionSphereCollision(const distance_field::Dist
 
     if ((maximum_value > dist) && (sphere_list[i].radius_ - dist > tolerance))
     {
-      ROS_INFO("Collision sphere %d (at position: %f, %f, %f, radius: %f), has dist %f (gradient: %f, %f, %f)", 
-                i, p.x(), p.y(), p.z(), sphere_list[i].radius_, dist, grad.x(), grad.y(), grad.z());
+      //ROS_INFO("Collision sphere %d (at position: %f, %f, %f, radius: %f), has dist %f (gradient: %f, %f, %f)", 
+      //          i, p.x(), p.y(), p.z(), sphere_list[i].radius_, dist, grad.x(), grad.y(), grad.z());
       return true;
     }
   }

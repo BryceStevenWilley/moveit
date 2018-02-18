@@ -146,7 +146,6 @@ void CollisionRobotDistanceField::generateCollisionCheckingStructures(
     // DistanceFieldCacheEntry for CollisionRobot");
     //ROS_INFO_STREAM("Allowed Collision Matrix: ");
     //acm->print(std::cerr);
-    ROS_INFO("Generating DFCE for group '%s' (generateCCStruct)", group_name.c_str());
     DistanceFieldCacheEntryPtr new_dfce =
         generateDistanceFieldCacheEntry(group_name, state, acm, generate_distance_field);
     boost::mutex::scoped_lock slock(update_cache_lock_);
@@ -912,7 +911,7 @@ DistanceFieldCacheEntryPtr CollisionRobotDistanceField::generateDistanceFieldCac
     if (updated_map.count(*name_iter) == 0)
     {
       dfce->state_check_indices_.push_back(dfce->state_values_.size() - 1);
-      ROS_DEBUG_STREAM("Non-group joint " << *name_iter << " will be checked for state changes");
+      ROS_INFO_STREAM("Non-group joint " << *name_iter << " will be checked for state changes from " << dfce->state_values_.back());
     }
   }
 
@@ -935,7 +934,6 @@ DistanceFieldCacheEntryPtr CollisionRobotDistanceField::generateDistanceFieldCac
       std::map<std::string, std::vector<collision_detection::AllowedCollision::Type> > link_name_to_base_relations;
       for (auto group_link_name : dfce->link_names_)
       {
-        //ROS_INFO_STREAM("Link " << group_link_name << " has collisions values of/with...");
         std::vector<collision_detection::AllowedCollision::Type> vec_for_link_name;
         for (auto base_link : robot_model_->getLinkModelsWithCollisionGeometry())
         {
@@ -948,7 +946,6 @@ DistanceFieldCacheEntryPtr CollisionRobotDistanceField::generateDistanceFieldCac
           collision_detection::AllowedCollision::Type type;
           dfce->acm_.getEntry(group_link_name, base_link_name, type);
           vec_for_link_name.push_back(type);
-          //ROS_INFO_STREAM(base_link_name << "(base): " << type);
         }
         // set part should get rid of duplicates.
         all_df_combos.insert(vec_for_link_name);
@@ -1003,7 +1000,7 @@ DistanceFieldCacheEntryPtr CollisionRobotDistanceField::generateDistanceFieldCac
         }
 
         df->addPointsToField(all_points);
-        //ROS_INFO_STREAM("CollisionRobot distance field has been initialized with " << all_points.size() << " points.");
+        //ROS_INFO("CollisionRobot distance field has been initialized with %zu points", all_points.size());
         all_dfs[acm_vec] = df;
       }
 
@@ -1335,7 +1332,9 @@ bool CollisionRobotDistanceField::compareCacheEntryToState(const DistanceFieldCa
     if (diff > EPSILON)
     {
       ROS_WARN_STREAM("State for Variable " << state.getVariableNames()[dfce->state_check_indices_[i]]
-                                            << " has changed by " << diff << " radians");
+                                            << " has changed by " << diff << " radians from " << 
+                                            dfce->state_values_[dfce->state_check_indices_[i]] << " to " <<
+                                            new_state_values[dfce->state_check_indices_[i]]);
       return false;
     }
   }

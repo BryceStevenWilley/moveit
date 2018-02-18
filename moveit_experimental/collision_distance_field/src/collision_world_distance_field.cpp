@@ -301,11 +301,11 @@ bool CollisionWorldDistanceField::getEnvironmentCollisions(
     const CollisionRequest& req, CollisionResult& res, const distance_field::DistanceFieldConstPtr& env_distance_field,
     GroupStateRepresentationPtr& gsr) const
 {
-  if (env_distance_field.get()->getSizeX() > 0) {
-    std::ofstream out;
-    out.open("/tmp/df-testing-field.json");
-    env_distance_field.get()->writeJsonToStream(out);
-  }
+  //if (env_distance_field.get()->getSizeX() > 0) {
+  //  std::ofstream out;
+  //  out.open("/tmp/df-testing-field.json");
+  //  env_distance_field.get()->writeJsonToStream(out);
+  //}
   for (unsigned int i = 0; i < gsr->dfce_->link_names_.size() + gsr->dfce_->attached_body_names_.size(); i++)
   {
     bool is_link = i < gsr->dfce_->link_names_.size();

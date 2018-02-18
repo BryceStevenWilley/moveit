@@ -251,6 +251,10 @@ protected:
   void getGroupStateRepresentation(const DistanceFieldCacheEntryConstPtr& dfce, const moveit::core::RobotState& state,
                                    GroupStateRepresentationPtr& gsr) const;
 
+  /**
+   * Returns true if the DistanceFieldCacheEntry's data is up to date with the given robot state.
+   * Checks things like the attached bodies, non-group joint changes, etc
+   */
   bool compareCacheEntryToState(const DistanceFieldCacheEntryConstPtr& dfce,
                                 const moveit::core::RobotState& state) const;
 
