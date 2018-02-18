@@ -162,21 +162,20 @@ void CollisionRobotDistanceField::checkSelfCollisionHelper(const collision_detec
                                                            const collision_detection::AllowedCollisionMatrix* acm,
                                                            GroupStateRepresentationPtr& gsr) const
 {
-  if (req.group_name == "")
+  std::string group_name = req.group_name;
+  if (group_name == "")
   {
-    // TODO(brycew): make/check the collisions for each group of the robot.
-    // For now, this will turn off the anoying prints from Rviz.
-    return;
+    // find the joint group that has the most children.
+    group_name = getClosestRootGroupName();
   }
   if (!gsr)
   {
-    generateCollisionCheckingStructures(req.group_name, state, acm, gsr, true);
+    generateCollisionCheckingStructures(group_name, state, acm, gsr, true);
   }
   else
   {
     updateGroupStateRepresentationState(state, gsr);
   }
-  // ros::WallTime n = ros::WallTime::now();
   bool done = getSelfCollisions(req, res, gsr);
 
   if (!done)

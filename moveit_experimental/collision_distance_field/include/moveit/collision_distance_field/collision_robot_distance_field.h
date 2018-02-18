@@ -38,6 +38,7 @@
 #define MOVEIT_COLLISION_DISTANCE_FIELD_COLLISION_ROBOT_DISTANCE_FIELD_
 
 #include <moveit/macros/class_forward.h>
+#include <moveit/robot_model/joint_model_group.h>
 #include <moveit/collision_detection/collision_robot.h>
 #include <moveit/collision_distance_field/collision_distance_field_types.h>
 #include <moveit/collision_distance_field/collision_common_distance_field.h>
@@ -185,6 +186,26 @@ public:
   //                                 const
   //                                 collision_detection::AllowedCollisionMatrix
   //                                 &acm) const;
+
+  // When the group to collision check for isn't specified, we want to use the
+  // group closest to the root link (the one with the most children), so the computed
+  // distance field doesn't have to be recomputed several times.
+  std::string getClosestRootGroupName() const
+  {
+    auto groups = robot_model_->getJointModelGroups();
+    int max_children = 0;
+    std::string max_name;
+    for (auto group : groups)
+    {
+      if (group->getUpdatedLinkModels().size() > max_children)
+      {
+        max_children = group->getUpdatedLinkModels().size();
+        max_name = group->getName();
+      }
+    }
+    return max_name;
+  }
+
 protected:
   bool getSelfProximityGradients(GroupStateRepresentationPtr& gsr) const;
 

@@ -132,16 +132,16 @@ void CollisionWorldDistanceField::checkCollisionHelper(const CollisionRequest& r
   try
   {
     const CollisionRobotDistanceField& cdr = dynamic_cast<const CollisionRobotDistanceField&>(robot);
-    if (req.group_name == "")
+    std::string group_name = req.group_name;
+    if (group_name == "")
     {
-      // TODO(brycew): make/check the collisions for each group of the robot.
-      // For now, this will turn off the anoying prints from Rviz.
-      ROS_WARN("Not currently checking with empty groups.");
-      return;
+      // find the joint group that has the most children.
+      group_name = cdr.getClosestRootGroupName();
     }
+
     if (!gsr)
     {
-      cdr.generateCollisionCheckingStructures(req.group_name, state, acm, gsr, true);
+      cdr.generateCollisionCheckingStructures(group_name, state, acm, gsr, true);
     }
     else
     {
@@ -192,22 +192,25 @@ void CollisionWorldDistanceField::checkRobotCollisionHelper(const CollisionReque
   try
   {
     const CollisionRobotDistanceField& cdr = dynamic_cast<const CollisionRobotDistanceField&>(robot);
-    if (req.group_name == "")
+    std::string group_name = req.group_name;
+    if (group_name == "")
     {
-      // TODO(brycew): make/check the collisions for each group of the robot.
-      // For now, this will turn off the anoying prints from Rviz.
-      ROS_WARN("Not currently checking with empty groups.");
-      return;
+      // find the joint group that has the most children.
+      group_name = cdr.getClosestRootGroupName();
     }
+
     DistanceFieldCacheEntryPtr dfce;
     if (!gsr)
     {
-      cdr.generateCollisionCheckingStructures(req.group_name, state, acm, gsr, true);
+      //ROS_INFO("Generating structs for group '%s'", group_name.c_str());
+      cdr.generateCollisionCheckingStructures(group_name, state, acm, gsr, true);
     }
     else
     {
+      //ROS_INFO("Updating structs for group '%s'", group_name.c_str());
       cdr.updateGroupStateRepresentationState(state, gsr);
     }
+    //ROS_INFO("left inner knuckle val is %f", state.getJointPositions("robotiq_85_left_inner_knuckle_joint")[0]);
     getEnvironmentCollisions(req, res, env_distance_field, gsr);
     (const_cast<CollisionWorldDistanceField*>(this))->last_gsr_ = gsr;
 
@@ -231,15 +234,15 @@ void CollisionWorldDistanceField::getCollisionGradients(const CollisionRequest& 
   try
   {
     const CollisionRobotDistanceField& cdr = dynamic_cast<const CollisionRobotDistanceField&>(robot);
-    if (req.group_name == "")
+    std::string group_name = req.group_name;
+    if (group_name == "")
     {
-      // TODO(brycew): make/check the collisions for each group of the robot.
-      // For now, this will turn off the anoying prints from Rviz.
-      return;
+      // find the joint group that has the most children.
+      group_name = cdr.getClosestRootGroupName();
     }
     if (!gsr)
     {
-      cdr.generateCollisionCheckingStructures(req.group_name, state, acm, gsr, true);
+      cdr.generateCollisionCheckingStructures(group_name, state, acm, gsr, true);
     }
     else
     {
@@ -266,15 +269,15 @@ void CollisionWorldDistanceField::getAllCollisions(const CollisionRequest& req, 
   try
   {
     const CollisionRobotDistanceField& cdr = dynamic_cast<const CollisionRobotDistanceField&>(robot);
-    if (req.group_name == "")
+    std::string group_name = req.group_name;
+    if (group_name == "")
     {
-      // TODO(brycew): make/check the collisions for each group of the robot.
-      // For now, this will turn off the anoying prints from Rviz.
-      return;
+      // find the joint group that has the most children.
+      group_name = cdr.getClosestRootGroupName();
     }
     if (!gsr)
     {
-      cdr.generateCollisionCheckingStructures(req.group_name, state, acm, gsr, true);
+      cdr.generateCollisionCheckingStructures(group_name, state, acm, gsr, true);
     }
     else
     {
