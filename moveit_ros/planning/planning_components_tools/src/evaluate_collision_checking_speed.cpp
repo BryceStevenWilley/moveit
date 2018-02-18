@@ -40,34 +40,62 @@
 
 static const std::string ROBOT_DESCRIPTION = "robot_description";
 
-void runCollisionDetection(unsigned int id, unsigned int trials, const planning_scene::PlanningScene* scene,
+/**
+ * Pass the state as nullptr to get random states for each check.
+ */
+void runCollisionDetection(unsigned int id, 
+                           unsigned int trials, 
+                           bool get_distance, 
+                           const planning_scene::PlanningScene* scene,
                            const robot_state::RobotState* state)
 {
   ROS_INFO("Starting thread %u", id);
   collision_detection::CollisionRequest req;
+  if (get_distance)
+  {
+    req.distance = true;
+  }
   ros::WallTime start = ros::WallTime::now();
+  if (state == nullptr)
+  {
+    auto model = new robot_state::RobotState(scene->getRobotModel());
+    for (unsigned int i = 0; i < trials; ++i)
+    {
+      model->setToRandomPositions();
+      model->update();
+      collision_detection::CollisionResult res;
+      scene->checkCollision(req, res, *model);
+    }
+    double duration = (ros::WallTime::now() - start).toSec();
+    ROS_INFO("Thread %u performed %lf random collision checks per second", id, (double) trials / duration);
+    return;
+  }
   for (unsigned int i = 0; i < trials; ++i)
   {
     collision_detection::CollisionResult res;
     scene->checkCollision(req, res, *state);
   }
   double duration = (ros::WallTime::now() - start).toSec();
-  ROS_INFO("Thread %u performed %lf collision checks per second", id, (double)trials / duration);
+  ROS_INFO("Thread %u performed %lf predefined ollision checks per second", id, (double)trials / duration);
 }
 
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "evaluate_collision_checking_speed");
 
-  unsigned int nthreads = 2;
-  unsigned int trials = 10000;
+  // TODO: once finished debugging performance, change back to 2.
+  unsigned int nthreads = 1;
+  unsigned int trials = 40000;
   boost::program_options::options_description desc;
   desc.add_options()("nthreads", boost::program_options::value<unsigned int>(&nthreads)->default_value(nthreads),
                      "Number of threads to use")(
       "trials", boost::program_options::value<unsigned int>(&trials)->default_value(trials),
-      "Number of collision checks to perform with each thread")("wait",
-                                                                "Wait for a user command (so the planning scene can be "
-                                                                "updated in the background)")("help", "this screen");
+      "Number of collision checks to perform with each thread")(
+      "in_coll", "if yes, gets states that are in collision")(
+      "random", "if yes, each check is random")(
+      "dist", "if yes, each check gets the distance to the closest obstacle")(
+      "wait", "Wait for a user command (so the planning scene can be "
+              "updated in the background)")("help", "this screen");
   boost::program_options::variables_map vm;
   boost::program_options::parsed_options po = boost::program_options::parse_command_line(argc, argv, desc);
   boost::program_options::store(po, vm);
@@ -96,9 +124,14 @@ int main(int argc, char** argv)
       ros::Duration(0.5).sleep();
 
     std::vector<robot_state::RobotStatePtr> states;
-    ROS_INFO("Sampling %u valid states...", nthreads);
+    ROS_INFO("Sampling %u states...", nthreads);
     for (unsigned int i = 0; i < nthreads; ++i)
     {
+      if (vm.count("random"))
+      {
+        states.push_back(nullptr);
+        continue;
+      }
       // sample a valid state
       robot_state::RobotState* state = new robot_state::RobotState(psm.getPlanningScene()->getRobotModel());
       collision_detection::CollisionRequest req;
@@ -109,7 +142,8 @@ int main(int argc, char** argv)
         collision_detection::CollisionResult res;
         ROS_INFO("Calling check collision");
         psm.getPlanningScene()->checkCollision(req, res, *state);
-        if (!res.collision)
+        ROS_INFO("Desired state: %s, current state: %s", (vm.count("in_coll")) ? "in collision" : "collision free", (res.collision) ? "in_collision" : "collision free");
+        if (!(vm.count("in_coll") ^ res.collision))
           break;
         ROS_INFO("Failed, trying a different random position.");
       } while (true);
@@ -120,7 +154,7 @@ int main(int argc, char** argv)
 
     for (unsigned int i = 0; i < states.size(); ++i)
       threads.push_back(new boost::thread(
-          boost::bind(&runCollisionDetection, i, trials, psm.getPlanningScene().get(), states[i].get())));
+          boost::bind(&runCollisionDetection, i, trials, vm.count("dist"), psm.getPlanningScene().get(), states[i].get())));
 
     for (unsigned int i = 0; i < states.size(); ++i)
     {
