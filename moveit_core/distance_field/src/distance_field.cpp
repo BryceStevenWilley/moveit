@@ -559,3 +559,49 @@ void distance_field::DistanceField::getProjectionPlanes(const std::string& frame
   if (z_projection)
     delete[] z_projection;
 }
+
+bool distance_field::DistanceField::writeJsonToStream(std::ostream& os, double out_resolution) const 
+{
+  os << "{";
+
+  os << "resolution: " << out_resolution << "," << std::endl;
+
+  os << "size_x: " << size_x_ << "," << std::endl;
+  os << "size_y: " << size_y_ << "," << std::endl;
+  os << "size_z: " << size_z_ << "," << std::endl;
+  os << "origin_x: " << origin_x_ << "," << std::endl;
+  os << "origin_y: " << origin_y_ << "," << std::endl;
+  os << "origin_z: " << origin_z_ << "," << std::endl;
+
+  os << "field: [" << std::endl; 
+  for (double x = origin_x_; x <= size_x_ + origin_x_; x += out_resolution)
+  {
+    os << "[";
+    for (double y = origin_y_; y <= size_y_ + origin_y_; y += out_resolution)
+    {
+      os << "[";
+      for (double z = origin_z_; z <= size_z_ + origin_z_; z += out_resolution)
+      {
+        double dist = getDistance(x, y, z);
+        // TODO, I don't think this is correct, all output entries are 0.26.
+        os << dist;
+        if (z + out_resolution <= size_z_ + origin_z_) {
+          os << ",";
+        }
+      }
+      os << "]";
+      if (y + out_resolution <= size_y_ + origin_y_) {
+        os << ",";
+      }
+    }
+    os << "]";
+    if (x + out_resolution < size_x_ + origin_x_)
+    {
+      os << ",";
+    }
+    os << std::endl;
+  }
+  os << "]}";
+  os.flush();
+  return true;
+}

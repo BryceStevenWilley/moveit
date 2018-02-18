@@ -425,6 +425,15 @@ public:
    */
   virtual bool readFromStream(std::istream& stream) = 0;
 
+  /** \brief Writes the contents of the distance field in the human (and python) readabale format
+   *  to the supplied stream.
+   * 
+   * @param [out] stream The stream to write the distance field contents.
+   * 
+   * @return True if the writing is successful; otherwise, false.
+   */
+  virtual bool writeJsonToStream(std::ostream& os, double out_resolution=0.2) const;
+
   /**
    * \brief Get an iso-surface for visualization in rviz.  The
    * iso-surface shows every cell that has a distance in a given
