@@ -893,12 +893,13 @@ DistanceFieldCacheEntryPtr CollisionRobotDistanceField::generateDistanceFieldCac
   std::map<std::string, bool> updated_map;
   if (!dfce->link_names_.empty())
   {
-    const std::vector<const moveit::core::JointModel*>& child_joint_models =
-        dfce->state_->getJointModelGroup(dfce->group_name_)->getActiveJointModels();
-    for (unsigned int i = 0; i < child_joint_models.size(); i++)
+    const std::vector<const moveit::core::LinkModel*>& links =
+        dfce->state_->getJointModelGroup(dfce->group_name_)->getUpdatedLinkModels();
+    for (auto link : links)
     {
-      updated_map[child_joint_models[i]->getName()] = true;
-      ROS_DEBUG_STREAM("Joint " << child_joint_models[i]->getName() << " has been added to updated list");
+      const moveit::core::JointModel* joint = link->getParentJointModel();
+      updated_map[joint->getName()] = true;
+      ROS_DEBUG_STREAM("Joint " << joint->getName() << " has been added to updated list");
     }
   }
 
