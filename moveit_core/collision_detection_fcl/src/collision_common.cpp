@@ -475,7 +475,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
     CONSOLE_BRIDGE_logDebug("Actually checking collisions between %s and %s", cd1->getID().c_str(),
                             cd2->getID().c_str());
 
-  fcl::DistanceResult fcl_result;
+  fcl::DistanceResult<double> fcl_result;
   DistanceResultsData dist_result;
   double dist_threshold = cdata->req->distance_threshold;
   std::map<std::string, DistanceResultsData>::iterator it1, it2;
@@ -515,7 +515,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
   }
 
   fcl_result.min_distance = dist_threshold;
-  double d = fcl::distance(o1, o2, fcl::DistanceRequest(cdata->req->enable_nearest_points), fcl_result);
+  double d = fcl::distance(o1, o2, fcl::DistanceRequest<double>(cdata->req->enable_nearest_points), fcl_result);
 
   // Check if either object is already in the map. If not add it or if present
   // check to see if the new distance is closer. If closer remove the existing
@@ -523,8 +523,8 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
   if (d < dist_threshold)
   {
     dist_result.distance = fcl_result.min_distance;
-    dist_result.nearest_points[0] = Eigen::Vector3d(fcl_result.nearest_points[0].data.vs);
-    dist_result.nearest_points[1] = Eigen::Vector3d(fcl_result.nearest_points[1].data.vs);
+    dist_result.nearest_points[0] = fcl_result.nearest_points[0];
+    dist_result.nearest_points[1] = fcl_result.nearest_points[1];
     dist_result.link_names[0] = cd1->ptr.obj->id_;
     dist_result.link_names[1] = cd2->ptr.obj->id_;
     dist_result.hasNearestPoints = cdata->req->enable_nearest_points;
@@ -539,8 +539,8 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
       dist_result.nearest_points[1].setZero();
       dist_result.normal.setZero();
 
-      fcl::CollisionRequest coll_req;
-      fcl::CollisionResult coll_res;
+      fcl::CollisionRequest<double> coll_req;
+      fcl::CollisionResult<double> coll_res;
       coll_req.enable_contact = true;
       coll_req.num_max_contacts = 200;
       std::size_t contacts = fcl::collide(o1, o2, coll_req, coll_res);
@@ -550,7 +550,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
         int max_index = 0;
         for (int i = 0; i < contacts; ++i)
         {
-          const fcl::Contact& contact = coll_res.getContact(i);
+          const fcl::Contact<double>& contact = coll_res.getContact(i);
           if (contact.penetration_depth > max_dist)
           {
             max_dist = contact.penetration_depth;
@@ -558,11 +558,11 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
           }
         }
 
-        const fcl::Contact& contact = coll_res.getContact(max_index);
+        const fcl::Contact<double>& contact = coll_res.getContact(max_index);
         dist_result.distance = -contact.penetration_depth;
-        dist_result.nearest_points[0] = Eigen::Vector3d(contact.pos.data.vs);
-        dist_result.nearest_points[1] = Eigen::Vector3d(contact.pos.data.vs);
-        dist_result.normal = Eigen::Vector3d(contact.normal.data.vs);
+        dist_result.nearest_points[0] = contact.pos;
+        dist_result.nearest_points[1] = contact.pos;
+        dist_result.normal = contact.normal;
       }
     }
 

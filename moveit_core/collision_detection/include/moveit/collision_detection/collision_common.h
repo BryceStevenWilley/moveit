@@ -241,6 +241,59 @@ struct DistanceRequest
   {
   }
 
+  DistanceRequest(bool enable_nearest_points,
+                  bool global,
+                  const std::set<const robot_model::LinkModel*> *active_components_only,
+                  const collision_detection::AllowedCollisionMatrix *acm,
+                  double distance_threshold = std::numeric_limits<double>::max()) 
+    : enable_nearest_points(enable_nearest_points),
+      global(global),
+      active_components_only(active_components_only),
+      acm(acm),
+      distance_threshold(distance_threshold),
+      verbose(false),
+      gradient(false) 
+  {
+  }
+
+  DistanceRequest(bool enable_nearest_points,
+                  bool global,
+                  const std::set<const robot_model::LinkModel*> &active_components_only,
+                  const collision_detection::AllowedCollisionMatrix &acm,
+                  double distance_threshold = std::numeric_limits<double>::max())
+    : DistanceRequest(enable_nearest_points, 
+                      global, 
+                      &active_components_only, 
+                      &acm, 
+                      distance_threshold)
+  {
+  }
+
+  DistanceRequest(bool detailed,
+                  bool global,
+                  const std::string group_name,
+                  const collision_detection::AllowedCollisionMatrix *acm,
+                  double distance_threshold = std::numeric_limits<double>::max())
+    : enable_nearest_points(enable_nearest_points),
+      global(global),
+      group_name(group_name),
+      active_components_only(NULL),
+      acm(acm),
+      distance_threshold(distance_threshold),
+      verbose(false),
+      gradient(false) 
+  {
+  }
+   
+  DistanceRequest(bool enable_nearest_points,
+                  bool global,
+                  const std::string group_name,
+                  const collision_detection::AllowedCollisionMatrix &acm,
+                  double distance_threshold = std::numeric_limits<double>::max())
+    : DistanceRequest(enable_nearest_points, global, group_name, &acm, distance_threshold)
+  {
+  }
+
   virtual ~DistanceRequest()
   {
   }
