@@ -383,17 +383,18 @@ struct FCLShapeCache
 
 bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<double>* o2, void* data, double& min_dist)
 {
-  CollisionData* cdata = reinterpret_cast<CollisionData*>(data);
+  DistanceData* cdata = reinterpret_cast<DistanceData*>(data);
 
   const CollisionGeometryData* cd1 = static_cast<const CollisionGeometryData*>(o1->collisionGeometry()->getUserData());
   const CollisionGeometryData* cd2 = static_cast<const CollisionGeometryData*>(o2->collisionGeometry()->getUserData());
+  bool active1 = true, active2 = true;
 
-  // do not perform distance calculation for geoms part of the same object / link / attached body
+  // do not distance check for geoms part of the same object / link / attached body
   if (cd1->sameObject(*cd2))
     return false;
 
   // If active components are specified
-  if (cdata->active_components_only_)
+  if (cdata->req->active_components_only)
   {
     const robot_model::LinkModel* l1 =
         cd1->type == BodyTypes::ROBOT_LINK ?
@@ -404,29 +405,33 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
             cd2->ptr.link :
             (cd2->type == BodyTypes::ROBOT_ATTACHED ? cd2->ptr.ab->getAttachedLink() : nullptr);
 
+    if (!l1 || cdata->req->active_components_only->find(l1) == cdata->req->active_components_only->end())
+      active1 = false;
+
+    if (!l2 || cdata->req->active_components_only->find(l2) == cdata->req->active_components_only->end())
+      active2 = false;
+
     // If neither of the involved components is active
-    if ((!l1 || cdata->active_components_only_->find(l1) == cdata->active_components_only_->end()) &&
-        (!l2 || cdata->active_components_only_->find(l2) == cdata->active_components_only_->end()))
+    if (active1 == false && active2 == false)
     {
-      min_dist = cdata->res_->distance;
-      return cdata->done_;
+      return false;
     }
   }
 
   // use the collision matrix (if any) to avoid certain distance checks
   bool always_allow_collision = false;
-  if (cdata->acm_)
+  if (cdata->req->acm)
   {
     AllowedCollision::Type type;
 
-    bool found = cdata->acm_->getAllowedCollision(cd1->getID(), cd2->getID(), type);
+    bool found = cdata->req->acm->getAllowedCollision(cd1->getID(), cd2->getID(), type);
     if (found)
     {
       // if we have an entry in the collision matrix, we read it
       if (type == AllowedCollision::ALWAYS)
       {
         always_allow_collision = true;
-        if (cdata->req_->verbose)
+        if (!cdata->req->verbose)
           CONSOLE_BRIDGE_logDebug("Collision between '%s' and '%s' is always allowed. No distances are computed.",
                                   cd1->getID().c_str(), cd2->getID().c_str());
       }
@@ -440,7 +445,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
     if (tl.find(cd1->getID()) != tl.end())
     {
       always_allow_collision = true;
-      if (cdata->req_->verbose)
+      if (!cdata->req->verbose)
         CONSOLE_BRIDGE_logDebug("Robot link '%s' is allowed to touch attached object '%s'. No distances are computed.",
                                 cd1->getID().c_str(), cd2->getID().c_str());
     }
@@ -453,7 +458,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
       if (tl.find(cd2->getID()) != tl.end())
       {
         always_allow_collision = true;
-        if (cdata->req_->verbose)
+        if (!cdata->req->verbose)
           CONSOLE_BRIDGE_logDebug("Robot link '%s' is allowed to touch attached object '%s'. No distances are "
                                   "computed.",
                                   cd2->getID().c_str(), cd1->getID().c_str());
@@ -463,57 +468,148 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
 
   if (always_allow_collision)
   {
-    min_dist = cdata->res_->distance;
-    return cdata->done_;
+    return false;
   }
 
-  fcl::DistanceResult<double> dist_result;
-  dist_result.update(cdata->res_->distance, nullptr, nullptr, fcl::DistanceResult<double>::NONE,
-                     fcl::DistanceResult<double>::NONE);  // can be faster
-  fcl::DistanceRequest<double> dist_request;
-  dist_request.enable_signed_distance = true;
-  dist_request.enable_nearest_points = true; // Need for Jacobian stuff.
-  const double d = fcl::distance(o1, o2, dist_request, dist_result);
+  if (!cdata->req->verbose)
+    CONSOLE_BRIDGE_logDebug("Actually checking collisions between %s and %s", cd1->getID().c_str(),
+                            cd2->getID().c_str());
 
-  if (cdata->req_->verbose)
-    CONSOLE_BRIDGE_logDebug("Distance between %s and %s: %f", cd1->getID().c_str(), cd2->getID().c_str(), d);
+  fcl::DistanceResult fcl_result;
+  DistanceResultsData dist_result;
+  double dist_threshold = cdata->req->distance_threshold;
+  std::map<std::string, DistanceResultsData>::iterator it1, it2;
 
-  if (d < 0)  // a penetration was found, no further distance calculations are necessary
+  if (!cdata->req->global)
   {
-    cdata->done_ = true;
-    cdata->res_->distance = d;
+    it1 = cdata->res->distances.find(cd1->ptr.obj->id_);
+    it2 = cdata->res->distances.find(cd2->ptr.obj->id_);
+
+    if (cdata->req->active_components_only)
+    {
+      if (active1 && active2)
+      {
+        if (it1 != cdata->res->distances.end() && it2 != cdata->res->distances.end())
+          dist_threshold = std::max(it1->second.distance, it2->second.distance);
+      }
+      else if (active1 && !active2)
+      {
+        if (it1 != cdata->res->distances.end())
+          dist_threshold = it1->second.distance;
+      }
+      else if (!active1 && active2)
+      {
+        if (it2 != cdata->res->distances.end())
+          dist_threshold = it2->second.distance;
+      }
+    }
+    else
+    {
+      if (it1 != cdata->res->distances.end() && it2 != cdata->res->distances.end())
+        dist_threshold = std::max(it1->second.distance, it2->second.distance);
+    }
   }
   else
   {
-    if (cdata->res_->distance > d)
+    dist_threshold = cdata->res->minimum_distance.distance;
+  }
+
+  fcl_result.min_distance = dist_threshold;
+  double d = fcl::distance(o1, o2, fcl::DistanceRequest(cdata->req->enable_nearest_points), fcl_result);
+
+  // Check if either object is already in the map. If not add it or if present
+  // check to see if the new distance is closer. If closer remove the existing
+  // one and add the new distance information.
+  if (d < dist_threshold)
+  {
+    dist_result.distance = fcl_result.min_distance;
+    dist_result.nearest_points[0] = Eigen::Vector3d(fcl_result.nearest_points[0].data.vs);
+    dist_result.nearest_points[1] = Eigen::Vector3d(fcl_result.nearest_points[1].data.vs);
+    dist_result.link_names[0] = cd1->ptr.obj->id_;
+    dist_result.link_names[1] = cd2->ptr.obj->id_;
+    dist_result.hasNearestPoints = cdata->req->enable_nearest_points;
+    if (dist_result.hasNearestPoints)
     {
-      if (cdata->req_->verbose)
-        CONSOLE_BRIDGE_logWarn("Distance between %s and %s: %f decreased", cd1->getID().c_str(), cd2->getID().c_str(),
-                               d);
-      cdata->res_->distance = d;
+      dist_result.normal = (dist_result.nearest_points[1] - dist_result.nearest_points[0]).normalized();
+    }
+
+    if (d <= 0 && cdata->req->enable_signed_distance)
+    {
+      dist_result.nearest_points[0].setZero();
+      dist_result.nearest_points[1].setZero();
+      dist_result.normal.setZero();
+
+      fcl::CollisionRequest coll_req;
+      fcl::CollisionResult coll_res;
+      coll_req.enable_contact = true;
+      coll_req.num_max_contacts = 200;
+      std::size_t contacts = fcl::collide(o1, o2, coll_req, coll_res);
+      if (contacts > 0)
+      {
+        double max_dist = 0;
+        int max_index = 0;
+        for (int i = 0; i < contacts; ++i)
+        {
+          const fcl::Contact& contact = coll_res.getContact(i);
+          if (contact.penetration_depth > max_dist)
+          {
+            max_dist = contact.penetration_depth;
+            max_index = i;
+          }
+        }
+
+        const fcl::Contact& contact = coll_res.getContact(max_index);
+        dist_result.distance = -contact.penetration_depth;
+        dist_result.nearest_points[0] = Eigen::Vector3d(contact.pos.data.vs);
+        dist_result.nearest_points[1] = Eigen::Vector3d(contact.pos.data.vs);
+        dist_result.normal = Eigen::Vector3d(contact.normal.data.vs);
+      }
+    }
+
+    cdata->res->minimum_distance = dist_result;
+
+    if (!cdata->req->global)
+    {
+      if (d <= 0 && !cdata->res->collision)
+      {
+        cdata->res->collision = true;
+      }
+
+      if (active1)
+      {
+        if (it1 == cdata->res->distances.end())
+        {
+          cdata->res->distances.insert(std::make_pair(cd1->ptr.obj->id_, dist_result));
+        }
+        else
+        {
+          it1->second = dist_result;
+        }
+      }
+
+      if (active2)
+      {
+        if (it2 == cdata->res->distances.end())
+        {
+          cdata->res->distances.insert(std::make_pair(cd2->ptr.obj->id_, dist_result));
+        }
+        else
+        {
+          it2->second = dist_result;
+        }
+      }
+    }
+    else
+    {
+      if (d <= 0)
+      {
+        cdata->res->collision = true;
+        cdata->done = true;
+      }
     }
   }
 
-  if (cdata->req_->contacts) {
-      // Add closests points (not really contacts).
-      const std::pair<std::string, std::string>& pc = (cd1->getID() < cd2->getID()) ?
-                                                        std::make_pair(cd1->getID(), cd2->getID()) :
-                                                        std::make_pair(cd2->getID(), cd1->getID());
-      Contact c;
-      // TODO: which of the nearest points to use?
-      c.pos = Eigen::Vector3d(dist_result.nearest_points[0][0], dist_result.nearest_points[0][1], dist_result.nearest_points[0][2]);
-      const CollisionGeometryData* cgd1 = static_cast<const CollisionGeometryData*>(dist_result.o1->getUserData());
-      c.body_name_1 = cgd1->getID();
-      c.body_type_1 = cgd1->type;
-      const CollisionGeometryData* cgd2 = static_cast<const CollisionGeometryData*>(dist_result.o2->getUserData());
-      c.body_name_2 = cgd2->getID();
-      c.body_type_2 = cgd2->type;
-      cdata->res_->contacts[pc].push_back(c);
-      cdata->res_->contact_count++;
-  }
-  min_dist = cdata->res_->distance;
-
-  return cdata->done_;
+  return cdata->done;
 }
 
 /* We template the function so we get a different cache for each of the template arguments combinations */

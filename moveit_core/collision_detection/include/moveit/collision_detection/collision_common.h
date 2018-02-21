@@ -45,9 +45,12 @@
 #include <set>
 #include <Eigen/Core>
 #include <console_bridge/console.h>
+#include <moveit/robot_model/robot_model.h>
 
 namespace collision_detection
 {
+MOVEIT_CLASS_FORWARD(AllowedCollisionMatrix);
+
 /** \brief The types of bodies that are considered for collision */
 namespace BodyTypes
 {
@@ -223,6 +226,139 @@ struct CollisionRequest
     
   /** \brief computes the gradient to move away from collisions. */
   bool compute_gradient;
+};
+
+struct DistanceRequest
+{
+  DistanceRequest()
+    : enable_nearest_points(false)
+    , enable_signed_distance(false)
+    , global(true)
+    , active_components_only(nullptr)
+    , acm(nullptr)
+    , distance_threshold(std::numeric_limits<double>::max())
+    , verbose(false)
+  {
+  }
+
+  virtual ~DistanceRequest()
+  {
+  }
+
+  /// Compute \e active_components_only_ based on \e req_
+  void enableGroup(const robot_model::RobotModelConstPtr& kmodel)
+  {
+    if (kmodel->hasJointModelGroup(group_name))
+      active_components_only = &kmodel->getJointModelGroup(group_name)->getUpdatedLinkModelsWithGeometrySet();
+    else
+      active_components_only = nullptr;
+  }
+
+  /// Indicate if nearest point information should be calculated
+  bool enable_nearest_points;
+
+  /// Indicate if a signed distance should be calculated in a collision.
+  bool enable_signed_distance;
+
+  /// Indicate if the global minimum should only be found. If this is true
+  /// it will only try to find the global minimum distance and not store information
+  /// on a link by link basis. If this is set to false it will store distance information
+  /// for every link in the active_components_only list.
+  bool global;
+
+  std::string group_name;
+
+  /// The set of active components to check
+  const std::set<const robot_model::LinkModel*>* active_components_only;
+
+  /// The allowed collision matrix used to filter checks
+  const AllowedCollisionMatrix* acm;
+
+  /// A distance threshold to reduce number of queries
+  double distance_threshold;
+
+  /// Log debug information
+  bool verbose;
+
+  /// Indicate if gradient should be calculated between each object. This the vector defined by the line connecting the
+  /// closest points on the two objects.
+  bool gradient;
+};
+
+struct DistanceResultsData
+{
+  DistanceResultsData()
+  {
+    clear();
+  }
+
+  /// The distance between two objects. If two objects are in collision, distance <= 0.
+  double distance;
+
+  /// The nearest points
+  Eigen::Vector3d nearest_points[2];
+
+  /// The object link names
+  std::string link_names[2];
+
+  /// A normalized vector pointing from link_names[0] to link_names[1].
+  Eigen::Vector3d normal;
+
+  /// Indicates if nearest points were found.
+  bool hasNearestPoints;
+
+  /// Clear structure data
+  void clear()
+  {
+    distance = std::numeric_limits<double>::max();
+    nearest_points[0].setZero();
+    nearest_points[1].setZero();
+    link_names[0] = "";
+    link_names[1] = "";
+    normal.setZero();
+    hasNearestPoints = false;
+  }
+
+  /// Update structure data given DistanceResultsData object
+  void operator=(const DistanceResultsData& other)
+  {
+    distance = other.distance;
+    nearest_points[0] = other.nearest_points[0];
+    nearest_points[1] = other.nearest_points[1];
+    link_names[0] = other.link_names[0];
+    link_names[1] = other.link_names[1];
+    normal = other.normal;
+    hasNearestPoints = other.hasNearestPoints;
+  }
+};
+
+typedef std::map<std::string, DistanceResultsData> DistanceMap;
+
+struct DistanceResult
+{
+  DistanceResult() : collision(false)
+  {
+  }
+  virtual ~DistanceResult()
+  {
+  }
+
+  /// Indicates if two objects were in collision
+  bool collision;
+
+  /// The results for the two objects with the minimum distance
+  DistanceResultsData minimum_distance;
+
+  /// A map of distance data for each link in the req.active_components_only
+  DistanceMap distances;
+
+  /// Clear structure data
+  void clear()
+  {
+    collision = false;
+    minimum_distance.clear();
+    distances.clear();
+  }
 };
 }
 
