@@ -2,6 +2,7 @@
  * Software License Agreement (BSD License)
  *
  *  Copyright (c) 2012, Willow Garage, Inc.
+ *  Copyright (c) 2017, Ken Anderson
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -32,44 +33,48 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Author: Ioan Sucan */
+/* Author: Ken Anderson, based off add_time_parameterization.cpp by Ioan Sucan */
 
-#ifndef MOVEIT_MOVE_GROUP_MOVE_ACTION_CAPABILITY_
-#define MOVEIT_MOVE_GROUP_MOVE_ACTION_CAPABILITY_
+#include <moveit/planning_request_adapter/planning_request_adapter.h>
+#include <moveit/trajectory_processing/iterative_spline_parameterization.h>
+#include <class_loader/class_loader.h>
+#include <ros/console.h>
 
-#include <moveit/move_group/move_group_capability.h>
-#include <actionlib/server/simple_action_server.h>
-#include <moveit_msgs/MoveGroupAction.h>
-#include <memory>
-
-namespace move_group
+namespace default_planner_request_adapters
 {
-class MoveGroupMoveAction : public MoveGroupCapability
+class AddIterativeSplineParameterization : public planning_request_adapter::PlanningRequestAdapter
 {
 public:
-  MoveGroupMoveAction();
+  AddIterativeSplineParameterization() : planning_request_adapter::PlanningRequestAdapter()
+  {
+  }
 
-  virtual void initialize();
+  virtual std::string getDescription() const
+  {
+    return "Add Time Parameterization";
+  }
+
+  virtual bool adaptAndPlan(const PlannerFn& planner, const planning_scene::PlanningSceneConstPtr& planning_scene,
+                            const planning_interface::MotionPlanRequest& req,
+                            planning_interface::MotionPlanResponse& res,
+                            std::vector<std::size_t>& added_path_index) const
+  {
+    bool result = planner(planning_scene, req, res);
+    if (result && res.trajectory_)
+    {
+      ROS_DEBUG("Running '%s'", getDescription().c_str());
+      if (!time_param_.computeTimeStamps(*res.trajectory_, req.max_velocity_scaling_factor,
+                                         req.max_acceleration_scaling_factor))
+        ROS_WARN("Time parametrization for the solution path failed.");
+    }
+
+    return result;
+  }
 
 private:
-  void executeMoveCallback(const moveit_msgs::MoveGroupGoalConstPtr& goal);
-  void executeMoveCallback_PlanAndExecute(const moveit_msgs::MoveGroupGoalConstPtr& goal,
-                                          moveit_msgs::MoveGroupResult& action_res);
-  void executeMoveCallback_PlanOnly(const moveit_msgs::MoveGroupGoalConstPtr& goal,
-                                    moveit_msgs::MoveGroupResult& action_res);
-  void startMoveExecutionCallback();
-  void startMoveLookCallback();
-  void preemptMoveCallback();
-  void setMoveState(MoveGroupState state);
-  bool planUsingPlanningPipeline(const planning_interface::MotionPlanRequest& req,
-                                 plan_execution::ExecutableMotionPlan& plan);
-
-  std::unique_ptr<actionlib::SimpleActionServer<moveit_msgs::MoveGroupAction> > move_action_server_;
-  moveit_msgs::MoveGroupFeedback move_feedback_;
-
-  MoveGroupState move_state_;
-  bool preempt_requested_;
+  trajectory_processing::IterativeSplineParameterization time_param_;
 };
 }
 
-#endif
+CLASS_LOADER_REGISTER_CLASS(default_planner_request_adapters::AddIterativeSplineParameterization,
+                            planning_request_adapter::PlanningRequestAdapter);
