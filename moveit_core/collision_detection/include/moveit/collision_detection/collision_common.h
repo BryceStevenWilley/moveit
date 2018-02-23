@@ -233,36 +233,37 @@ struct DistanceRequest
   DistanceRequest()
     : enable_nearest_points(false)
     , enable_signed_distance(false)
-    , global(true)
+    , global_minimum_only(true)
     , active_components_only(nullptr)
     , acm(nullptr)
     , distance_threshold(std::numeric_limits<double>::max())
     , verbose(false)
+    , compute_gradient(false)
   {
   }
 
   DistanceRequest(bool enable_nearest_points,
-                  bool global,
+                  bool global_minimum_only,
                   const std::set<const robot_model::LinkModel*> *active_components_only,
                   const collision_detection::AllowedCollisionMatrix *acm,
                   double distance_threshold = std::numeric_limits<double>::max()) 
     : enable_nearest_points(enable_nearest_points),
-      global(global),
+      global_minimum_only(global_minimum_only),
       active_components_only(active_components_only),
       acm(acm),
       distance_threshold(distance_threshold),
       verbose(false),
-      gradient(false) 
+      compute_gradient(false) 
   {
   }
 
   DistanceRequest(bool enable_nearest_points,
-                  bool global,
+                  bool global_minimum_only,
                   const std::set<const robot_model::LinkModel*> &active_components_only,
                   const collision_detection::AllowedCollisionMatrix &acm,
                   double distance_threshold = std::numeric_limits<double>::max())
     : DistanceRequest(enable_nearest_points, 
-                      global, 
+                      global_minimum_only, 
                       &active_components_only, 
                       &acm, 
                       distance_threshold)
@@ -270,27 +271,27 @@ struct DistanceRequest
   }
 
   DistanceRequest(bool detailed,
-                  bool global,
+                  bool global_minimum_only,
                   const std::string group_name,
                   const collision_detection::AllowedCollisionMatrix *acm,
                   double distance_threshold = std::numeric_limits<double>::max())
     : enable_nearest_points(enable_nearest_points),
-      global(global),
+      global_minimum_only(global_minimum_only),
       group_name(group_name),
       active_components_only(NULL),
       acm(acm),
       distance_threshold(distance_threshold),
       verbose(false),
-      gradient(false) 
+      compute_gradient(false) 
   {
   }
    
   DistanceRequest(bool enable_nearest_points,
-                  bool global,
+                  bool global_minimum_only,
                   const std::string group_name,
                   const collision_detection::AllowedCollisionMatrix &acm,
                   double distance_threshold = std::numeric_limits<double>::max())
-    : DistanceRequest(enable_nearest_points, global, group_name, &acm, distance_threshold)
+    : DistanceRequest(enable_nearest_points, global_minimum_only, group_name, &acm, distance_threshold)
   {
   }
 
@@ -302,7 +303,7 @@ struct DistanceRequest
   void enableGroup(const robot_model::RobotModelConstPtr& kmodel)
   {
     if (kmodel->hasJointModelGroup(group_name))
-      active_components_only = &kmodel->getJointModelGroup(group_name)->getUpdatedLinkModelsWithGeometrySet();
+      active_components_only = &kmodel->getJointModelGroup(group_name)->getUpdatedLinkModelsSet();
     else
       active_components_only = nullptr;
   }
@@ -317,7 +318,7 @@ struct DistanceRequest
   /// it will only try to find the global minimum distance and not store information
   /// on a link by link basis. If this is set to false it will store distance information
   /// for every link in the active_components_only list.
-  bool global;
+  bool global_minimum_only;
 
   std::string group_name;
 
@@ -327,7 +328,8 @@ struct DistanceRequest
   /// The allowed collision matrix used to filter checks
   const AllowedCollisionMatrix* acm;
 
-  /// A distance threshold to reduce number of queries
+  /// Only calculate distances for objects within this threshold to each other.
+  /// If set this can significantly to reduce number of queries.
   double distance_threshold;
 
   /// Log debug information
@@ -335,7 +337,7 @@ struct DistanceRequest
 
   /// Indicate if gradient should be calculated between each object. This the vector defined by the line connecting the
   /// closest points on the two objects.
-  bool gradient;
+  bool compute_gradient;
 };
 
 struct DistanceResultsData
@@ -354,11 +356,11 @@ struct DistanceResultsData
   /// The object link names
   std::string link_names[2];
 
+  /// The object body type
+  BodyType body_types[2];
+
   /// A normalized vector pointing from link_names[0] to link_names[1].
   Eigen::Vector3d normal;
-
-  /// Indicates if nearest points were found.
-  bool hasNearestPoints;
 
   /// Clear structure data
   void clear()
@@ -366,10 +368,11 @@ struct DistanceResultsData
     distance = std::numeric_limits<double>::max();
     nearest_points[0].setZero();
     nearest_points[1].setZero();
+    body_types[0] = BodyType::WORLD_OBJECT;
+    body_types[1] = BodyType::WORLD_OBJECT;
     link_names[0] = "";
     link_names[1] = "";
     normal.setZero();
-    hasNearestPoints = false;
   }
 
   /// Update structure data given DistanceResultsData object
@@ -380,8 +383,9 @@ struct DistanceResultsData
     nearest_points[1] = other.nearest_points[1];
     link_names[0] = other.link_names[0];
     link_names[1] = other.link_names[1];
+    body_types[0] = other.body_types[0];
+    body_types[1] = other.body_types[1];
     normal = other.normal;
-    hasNearestPoints = other.hasNearestPoints;
   }
 };
 

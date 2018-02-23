@@ -431,7 +431,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
       if (type == AllowedCollision::ALWAYS)
       {
         always_allow_collision = true;
-        if (!cdata->req->verbose)
+        if (cdata->req->verbose)
           CONSOLE_BRIDGE_logDebug("Collision between '%s' and '%s' is always allowed. No distances are computed.",
                                   cd1->getID().c_str(), cd2->getID().c_str());
       }
@@ -445,7 +445,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
     if (tl.find(cd1->getID()) != tl.end())
     {
       always_allow_collision = true;
-      if (!cdata->req->verbose)
+      if (cdata->req->verbose)
         CONSOLE_BRIDGE_logDebug("Robot link '%s' is allowed to touch attached object '%s'. No distances are computed.",
                                 cd1->getID().c_str(), cd2->getID().c_str());
     }
@@ -458,7 +458,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
       if (tl.find(cd2->getID()) != tl.end())
       {
         always_allow_collision = true;
-        if (!cdata->req->verbose)
+        if (cdata->req->verbose)
           CONSOLE_BRIDGE_logDebug("Robot link '%s' is allowed to touch attached object '%s'. No distances are "
                                   "computed.",
                                   cd2->getID().c_str(), cd1->getID().c_str());
@@ -470,17 +470,15 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
   {
     return false;
   }
-
-  if (!cdata->req->verbose)
+  if (cdata->req->verbose)
     CONSOLE_BRIDGE_logDebug("Actually checking collisions between %s and %s", cd1->getID().c_str(),
                             cd2->getID().c_str());
 
-  fcl::DistanceResult<double> fcl_result;
   DistanceResultsData dist_result;
   double dist_threshold = cdata->req->distance_threshold;
   std::map<std::string, DistanceResultsData>::iterator it1, it2;
 
-  if (!cdata->req->global)
+  if (!cdata->req->global_minimum_only)
   {
     it1 = cdata->res->distances.find(cd1->ptr.obj->id_);
     it2 = cdata->res->distances.find(cd2->ptr.obj->id_);
@@ -514,6 +512,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
     dist_threshold = cdata->res->minimum_distance.distance;
   }
 
+  fcl::DistanceResult<double> fcl_result;
   fcl_result.min_distance = dist_threshold;
   double d = fcl::distance(o1, o2, fcl::DistanceRequest<double>(cdata->req->enable_nearest_points), fcl_result);
 
@@ -527,8 +526,9 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
     dist_result.nearest_points[1] = fcl_result.nearest_points[1];
     dist_result.link_names[0] = cd1->ptr.obj->id_;
     dist_result.link_names[1] = cd2->ptr.obj->id_;
-    dist_result.hasNearestPoints = cdata->req->enable_nearest_points;
-    if (dist_result.hasNearestPoints)
+    dist_result.body_types[0] = cd1->type;
+    dist_result.body_types[1] = cd2->type;
+    if (cdata->req->enable_nearest_points)
     {
       dist_result.normal = (dist_result.nearest_points[1] - dist_result.nearest_points[0]).normalized();
     }
@@ -568,7 +568,7 @@ bool distanceCallback(fcl::CollisionObject<double>* o1, fcl::CollisionObject<dou
 
     cdata->res->minimum_distance = dist_result;
 
-    if (!cdata->req->global)
+    if (!cdata->req->global_minimum_only)
     {
       if (d <= 0 && !cdata->res->collision)
       {
