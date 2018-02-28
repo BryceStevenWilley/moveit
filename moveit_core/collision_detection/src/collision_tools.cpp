@@ -129,6 +129,39 @@ void collision_detection::getCollisionMarkersFromContacts(visualization_msgs::Ma
         mk.color.a = 1.0;
       mk.lifetime = lifetime;
       arr.markers.push_back(mk);
+
+      // Arrow for normal direction/location.
+      std::string ns_arrow_name = contact.body_name_1 + "->" + contact.body_name_2;
+      if (ns_counts.find(ns_arrow_name) == ns_counts.end())
+        ns_counts[ns_arrow_name] = 0;
+      else
+        ns_counts[ns_arrow_name]++;
+
+      visualization_msgs::Marker normal_arrow;
+      normal_arrow.header.frame_id = frame_id;
+      normal_arrow.header.stamp = ros::Time::now();
+      
+      normal_arrow.ns = ns_arrow_name;
+      normal_arrow.id = ns_counts[ns_arrow_name];
+      normal_arrow.type = visualization_msgs::Marker::ARROW;
+      normal_arrow.action = visualization_msgs::Marker::ADD;
+      normal_arrow.pose.position.x = contact.pos.x(); 
+      normal_arrow.pose.position.y = contact.pos.y();
+      normal_arrow.pose.position.z = contact.pos.z();
+      // Get the orientation of the arrow: First get angle axis.
+      Eigen::Vector3d up(1, 0, 0);
+      Eigen::Quaterniond q = Eigen::Quaternion<double>::FromTwoVectors(up, contact.normal);
+
+      normal_arrow.pose.orientation.x = q.x();
+      normal_arrow.pose.orientation.y = q.y();
+      normal_arrow.pose.orientation.z = q.z();
+      normal_arrow.pose.orientation.w = q.w();
+
+      normal_arrow.scale.x = 4 * radius;
+      normal_arrow.scale.y = normal_arrow.scale.z = contact.normal.norm() * 2 * radius;
+      normal_arrow.color = color;
+      normal_arrow.lifetime = lifetime;
+      arr.markers.push_back(normal_arrow);
     }
   }
 }
