@@ -1154,19 +1154,6 @@ bool moveit::core::RobotState::getJacobian(const JointModelGroup* group, const L
   Eigen::Vector3d joint_axis;
   Eigen::Affine3d joint_transform;
 
-  auto given_link = link;
-  while (not group->hasLinkModel(link->getName()))
-  {
-      link = link->getParentLinkModel();
-      if (not link)
-      {
-          logError("Given link '%s' is a child of the chain, but the chain is never reach when going up.",
-                   given_link->getName().c_str());
-          return false;
-      }
-  }
-  // Link is now guaranteed to be a part of group.
-
   while (link)
   {
     /*
@@ -1181,8 +1168,8 @@ bool moveit::core::RobotState::getJacobian(const JointModelGroup* group, const L
     {
       if (not group->hasJointModel(pjm->getName()))
       {
-          logError("Joint %s is not in the current group.", pjm->getName().c_str());
-          return false;
+          link = pjm->getParentLinkModel();
+          continue;
       }
       unsigned int joint_index = group->getVariableGroupIndex(pjm->getName());
       if (pjm->getType() == robot_model::JointModel::REVOLUTE)
