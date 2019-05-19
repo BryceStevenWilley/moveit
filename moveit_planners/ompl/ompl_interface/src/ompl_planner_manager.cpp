@@ -147,6 +147,15 @@ public:
                                                             const planning_interface::MotionPlanRequest& req,
                                                             moveit_msgs::MoveItErrorCodes& error_code) const override
   {
+    if (not planning_scene->getRobotModel()->satisfiesPositionBounds(req.start_state.joint_state.position.data()))
+    {
+      ROS_ERROR_STREAM_NAMED("chomp_planner", "Start state violates joint limits: ");
+      for (double j : req.start_state.joint_state.position) {
+        ROS_ERROR_STREAM_NAMED("chomp_planner", j);
+      }
+    } else {
+      ROS_INFO("Okay before diff.");
+    }
     return ompl_interface_->getPlanningContext(planning_scene, req, error_code);
   }
 

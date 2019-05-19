@@ -65,7 +65,10 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
 
   if (not planning_scene->getRobotModel()->satisfiesPositionBounds(req.start_state.joint_state.position.data()))
   {
-    ROS_ERROR_STREAM_NAMED("chomp_planner", "Start state violates joint limits");
+    ROS_ERROR_STREAM_NAMED("chomp_planner", "Start state violates joint limits: ");
+    for (double j : req.start_state.joint_state.position) {
+      ROS_ERROR_STREAM_NAMED("chomp_planner", j);
+    }
     res.error_code.val = moveit_msgs::MoveItErrorCodes::INVALID_ROBOT_STATE;
     return false;
   }

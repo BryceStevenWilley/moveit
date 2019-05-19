@@ -1225,7 +1225,14 @@ bool RobotModel::satisfiesPositionBounds(const double* state, const JointBoundsV
   for (std::size_t i = 0; i < active_joint_model_vector_.size(); ++i)
     if (!active_joint_model_vector_[i]->satisfiesPositionBounds(state + active_joint_model_start_index_[i],
                                                                 *active_joint_bounds[i], margin))
+    {
+      ROS_ERROR("Joint %zu failed", i);
+      ROS_ERROR("Start idx: %d", active_joint_model_start_index_[i]);
+      for (size_t jj = 0; jj < (*active_joint_bounds[i]).size(); jj++) {
+        ROS_ERROR("jj: %zu: %f: min: %f, max: %f", jj, state[active_joint_model_start_index_[i] + jj], (*active_joint_bounds[i])[jj].min_position_, (*active_joint_bounds[i])[jj].max_position_);
+      }
       return false;
+    }
   return true;
 }
 

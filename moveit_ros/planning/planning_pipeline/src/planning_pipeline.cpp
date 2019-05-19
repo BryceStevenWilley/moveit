@@ -209,6 +209,15 @@ bool planning_pipeline::PlanningPipeline::generatePlan(const planning_scene::Pla
                                                        planning_interface::MotionPlanResponse& res,
                                                        std::vector<std::size_t>& adapter_added_state_index) const
 {
+  if (not planning_scene->getRobotModel()->satisfiesPositionBounds(req.start_state.joint_state.position.data()))
+  {
+    ROS_ERROR_STREAM_NAMED("planning_pipeline", "Planning_pipeline: Start state violates joint limits: ");
+    for (double j : req.start_state.joint_state.position) {
+      ROS_ERROR_STREAM_NAMED("planning_pipeline", j);
+    }
+  } else {
+    ROS_INFO("Planning pipeline: Okay before diff.");
+  }
   // broadcast the request we are about to work on, if needed
   if (publish_received_requests_)
     received_request_publisher_.publish(req);
